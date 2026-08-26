@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import React from "react";
-import { MockProfileProvider } from "@/lib/mockContext";
 
 export const metadata: Metadata = {
   title: "JanSeva AI - Citizen Public Service Gateway",
@@ -16,9 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased bg-[#f8fafc] text-slate-900 overflow-hidden font-sans">
-        <MockProfileProvider>
-          {children}
-        </MockProfileProvider>
+        {children}
       </body>
     </html>
   );
