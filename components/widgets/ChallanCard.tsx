@@ -1,47 +1,98 @@
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+"use client";
+
+import React, { useState } from "react";
+import { CheckCircle2, ShieldAlert, CreditCard, Check } from "lucide-react";
 
 export function ChallanCard({ result }: { result: any }) {
-  if (result.status === 'NOT_FOUND') {
+  const [paid, setPaid] = useState(false);
+
+  if (result.status === "NOT_FOUND") {
     return (
-      <Card className="bg-green-50 border-green-200 mt-2">
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-600">✓</div>
-          <p className="text-sm font-medium text-green-800">{result.message}</p>
-        </CardContent>
-      </Card>
+      <div className="w-full max-w-md bg-emerald-50/80 dark:bg-[#202735] border border-emerald-500/30 rounded-2xl p-5 shadow-xl transition-all space-y-2 my-1">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white leading-tight">
+              No Pending Fines
+            </h3>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">Clean Driving Record</p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-normal pt-1">
+          {result.message || `No pending violations found for vehicle ${result.vehicle || ""}. Drive safely!`}
+        </p>
+      </div>
     );
   }
 
   return (
-    <Card className="mt-2 border-red-200 shadow-sm">
-      <CardHeader className="bg-red-50/50 pb-3 border-b">
-        <div className="flex justify-between items-start">
-          <CardTitle className="text-lg text-red-700">e-Challan Pending</CardTitle>
-          <Badge variant="destructive">₹{result.amount}</Badge>
+    <div className="w-full max-w-md bg-white dark:bg-[#202735] border border-rose-500/30 rounded-2xl p-5 shadow-xl transition-all space-y-3.5 my-1">
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 dark:text-rose-400 flex-shrink-0">
+            <ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white leading-tight">
+              e-Challan Pending
+            </h3>
+            <p className="text-xs font-medium text-rose-500 dark:text-rose-400 mt-0.5">Parivahan Violation Notice</p>
+          </div>
         </div>
-      </CardHeader>
-      <CardContent className="pt-4 space-y-2 text-sm">
-        <div className="flex justify-between border-b pb-1">
-          <span className="text-gray-500">Vehicle No:</span>
-          <span className="font-semibold uppercase">{result.vehicle}</span>
+        <span className="bg-rose-500/15 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 dark:border-rose-500/40 text-xs font-bold px-2.5 py-1 rounded-full">
+          ₹{result.amount || 1000}
+        </span>
+      </div>
+
+      {/* Details Box */}
+      <div className="bg-slate-50 dark:bg-[#181e29] rounded-xl p-3.5 border border-slate-200 dark:border-slate-700/60 text-xs space-y-2">
+        <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+          <span>Vehicle Registration:</span>
+          <span className="text-slate-900 dark:text-slate-100 font-mono font-bold uppercase">
+            {result.vehicle || "DL01AB1234"}
+          </span>
         </div>
-        <div className="flex justify-between border-b pb-1">
-          <span className="text-gray-500">Challan ID:</span>
-          <span>{result.challanId}</span>
+        <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+          <span>Challan ID:</span>
+          <span className="text-slate-800 dark:text-slate-200 font-mono">
+            {result.challanId || "CH-2026-88349"}
+          </span>
         </div>
-        <div className="flex justify-between border-b pb-1">
-          <span className="text-gray-500">Violation:</span>
-          <span>{result.offense}</span>
+        <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+          <span>Violation / Offense:</span>
+          <span className="text-rose-600 dark:text-rose-300 font-medium">
+            {result.offense || "Over Speeding (Sec 183 MVA)"}
+          </span>
         </div>
-        <div className="flex justify-between pt-1">
-          <span className="text-gray-500">Date:</span>
-          <span>{result.date}</span>
+        <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+          <span>Notice Date:</span>
+          <span className="text-slate-800 dark:text-slate-200">{result.date || "14-02-2026"}</span>
         </div>
-        <button className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white py-2 rounded-md font-medium transition-colors">
-          Proceed to Secure Payment
+      </div>
+
+      {/* Payment Action */}
+      <div className="pt-1">
+        <button
+          type="button"
+          onClick={() => setPaid(true)}
+          className="w-full bg-[#9bb3f7] hover:bg-[#8ea8f7] text-slate-950 font-semibold py-2.5 px-4 rounded-xl text-xs transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+        >
+          {paid ? (
+            <>
+              <Check className="w-3.5 h-3.5" />
+              <span>Redirecting to Bharat BillPay Gateway...</span>
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Proceed to Secure Parivahan Payment</span>
+            </>
+          )}
         </button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

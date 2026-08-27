@@ -1,5 +1,11 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { ToolLoopAgent, createAgentUIStreamResponse, tool } from 'ai';
+import {
+    ToolLoopAgent,
+    createAgentUIStreamResponse,
+    createUIMessageStream,
+    createUIMessageStreamResponse,
+    tool,
+} from 'ai';
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/mongodb';
 import { Challan } from '@/lib/models';
@@ -10,27 +16,25 @@ const google = createGoogleGenerativeAI({
 
 export const maxDuration = 30;
 
-// Reusable tool definition
+// 1. Tool: Check Traffic Fines
 const checkTrafficFinesTool = tool({
     description: 'Look up pending traffic fines and e-Challan records for a vehicle registration number in Parivahan database.',
     parameters: z.object({
-        vehicleNo: z.string().optional().describe('Vehicle registration number, e.g. DL01AB1234'),
-        vehicleNumber: z.string().optional().describe('Vehicle registration number, e.g. DL01AB1234'),
-        vehicle_number: z.string().optional().describe('Vehicle registration number, e.g. DL01AB1234'),
+        vehicleNo: z.string().optional().describe('Vehicle registration number, e.g. DL01AB1234 or MH02CD5678'),
     }),
     execute: async (args: any) => {
-        const rawVeh = args?.vehicleNo || args?.vehicleNumber || args?.vehicle_number || args?.vehicle || '';
+        const rawVeh = args?.vehicleNo || args?.vehicleNumber || args?.vehicle || '';
         const normalizedVeh = rawVeh.trim().toUpperCase();
 
         if (!normalizedVeh) {
             return {
                 status: 'NOT_FOUND',
                 vehicle: '',
-                message: 'No vehicle number was provided. Please check the vehicle registration details.',
+                message: 'Please provide a valid vehicle registration number (e.g. DL01AB1234).',
             };
         }
 
-        // 1. Check MongoDB if configured
+        // Check MongoDB if configured
         if (process.env.MONGODB_URI) {
             try {
                 await connectToDatabase();
@@ -50,7 +54,6 @@ const checkTrafficFinesTool = tool({
             }
         }
 
-        // 2. Verified fallback records
         if (normalizedVeh === 'DL01AB1234') {
             return {
                 status: 'FOUND',
@@ -81,15 +84,50 @@ const checkTrafficFinesTool = tool({
     },
 } as any);
 
+// 2. Tool: Check Aadhaar Status
+const checkAadhaarStatusTool = tool({
+    description: 'Check status of an Aadhaar enrollment or update request using Aadhaar number or Enrollment ID.',
+    parameters: z.object({
+        identifier: z.string().describe('The 12-digit Aadhaar number, 14-digit EID, or masked identifier'),
+    }),
+    execute: async (args: any) => {
+        const id = args?.identifier || '********4321';
+        return {
+            status: 'GENERATED_DISPATCHED',
+            aadhaarNumber: id.includes('*') ? id : '********' + id.slice(-4),
+            name: 'Ramesh Sharma',
+            message: 'Your Aadhaar has been generated and sent via post. You can also download the e-Aadhaar from the official UIDAI portal.',
+            dispatchDate: '24-02-2026',
+            trackingNumber: 'IN984210492IN',
+        };
+    },
+} as any);
+
+// 3. Tool: Check PAN Info
+const checkPanInfoTool = tool({
+    description: 'Look up PAN card verification and Aadhaar linking status.',
+    parameters: z.object({
+        panNumber: z.string().optional().describe('10-character PAN number'),
+    }),
+    execute: async (args: any) => {
+        return {
+            status: 'ACTIVE',
+            panNumber: args?.panNumber?.toUpperCase() || 'ABCDE1234F',
+            name: 'Ramesh Sharma',
+            category: 'Individual',
+            aadhaarLinked: true,
+        };
+    },
+} as any);
+
 const systemInstructions = `You are JanSeva AI, the official Indian public service digital assistant and generative UI gateway.
 - Be polite, concise, helpful, and citizen-friendly.
-- When a citizen asks about traffic fines, challans, or violations for a vehicle, trigger the checkTrafficFines tool with the provided vehicle number.
-- If the vehicle number is not provided, politely prompt the citizen to share their vehicle registration number (e.g. DL01AB1234 or MH02CD5678).
-- Once the checkTrafficFines tool outputs a result, summarize it briefly in a conversational tone. If a fine is pending, guide them on how to proceed.
-- Strictly decline non-civic inquiries (e.g. recipes, entertainment, casual coding) and remind the user that you only assist with official public services.
-- NEVER output real numeric digits for Aadhaar. Always use [Aadhaar Redacted].`;
+- When a citizen asks about traffic fines or challans, trigger checkTrafficFines.
+- When a citizen asks about Aadhaar status, ask for their 14-digit EID or Aadhaar number, and trigger checkAadhaarStatus.
+- When a citizen asks about PAN card details, trigger checkPanInfo.
+- Strictly decline non-civic inquiries and remind the user that you only assist with official public services.
+- NEVER output real numeric digits for Aadhaar. Always use masked [Aadhaar Redacted] or ********4321.`;
 
-// Models to try in sequence for robustness
 const modelNames = [
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
@@ -97,44 +135,53 @@ const modelNames = [
     'gemini-3.6-flash',
 ];
 
-// Helper to construct a local fallback SSE stream response
+// Schema-compliant fallback stream response for AI SDK 7
 function createFallbackStreamResponse(text: string, toolCall?: { name: string, callId: string, output: any }) {
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-        async start(controller) {
-            controller.enqueue(encoder.encode('data: {"type":"start"}\n\n'));
-            controller.enqueue(encoder.encode('data: {"type":"start-step"}\n\n'));
+    const textId = 'text-' + Date.now();
+    return createUIMessageStreamResponse({
+        stream: createUIMessageStream({
+            execute: async ({ writer }) => {
+                writer.write({ type: 'start' } as any);
 
-            if (toolCall) {
-                controller.enqueue(encoder.encode(`data: {"type":"tool-input-start","toolCallId":"${toolCall.callId}","toolName":"${toolCall.name}"}\n\n`));
-                controller.enqueue(encoder.encode(`data: {"type":"tool-input-available","toolCallId":"${toolCall.callId}","toolName":"${toolCall.name}","input":{}}\n\n`));
-                controller.enqueue(encoder.encode(`data: {"type":"tool-output-available","toolCallId":"${toolCall.callId}","output":${JSON.stringify(toolCall.output)}}\n\n`));
+                if (toolCall) {
+                    writer.write({ type: 'start-step' } as any);
+                    writer.write({
+                        type: 'tool-input-start',
+                        toolCallId: toolCall.callId,
+                        toolName: toolCall.name,
+                    } as any);
+                    writer.write({
+                        type: 'tool-input-available',
+                        toolCallId: toolCall.callId,
+                        toolName: toolCall.name,
+                        input: {},
+                    } as any);
+                    writer.write({
+                        type: 'tool-output-available',
+                        toolCallId: toolCall.callId,
+                        output: toolCall.output,
+                    } as any);
+                    writer.write({ type: 'finish-step' } as any);
+                }
+
+                writer.write({ type: 'start-step' } as any);
+                writer.write({ type: 'text-start', id: textId } as any);
+
+                const words = text.split(' ');
+                for (const word of words) {
+                    writer.write({
+                        type: 'text-delta',
+                        id: textId,
+                        delta: `${word} `,
+                    } as any);
+                    await new Promise(r => setTimeout(r, 12));
+                }
+
+                writer.write({ type: 'text-end', id: textId } as any);
+                writer.write({ type: 'finish-step' } as any);
+                writer.write({ type: 'finish', finishReason: 'stop' } as any);
             }
-
-            controller.enqueue(encoder.encode('data: {"type":"finish-step"}\n\n'));
-            controller.enqueue(encoder.encode('data: {"type":"start-step"}\n\n'));
-
-            // Stream text in delta chunks
-            const words = text.split(' ');
-            for (const word of words) {
-                controller.enqueue(encoder.encode(`data: {"type":"text-delta","text":"${word} "}\n\n`));
-                await new Promise(r => setTimeout(r, 15));
-            }
-
-            controller.enqueue(encoder.encode('data: {"type":"finish-step"}\n\n'));
-            controller.enqueue(encoder.encode('data: {"type":"finish","finishReason":"stop"}\n\n'));
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-        }
-    });
-
-    return new Response(stream, {
-        headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'x-vercel-ai-ui-message-stream': 'v1',
-        }
+        })
     });
 }
 
@@ -142,7 +189,6 @@ export async function POST(req: Request) {
     let lastError: any = null;
     const { messages } = await req.json();
 
-    // Defensive check: backfill 'id' for messages if client did not supply one
     const formattedMessages = (messages || []).map((m: any, idx: number) => ({
         id: m.id || `msg-${idx}-${Date.now()}`,
         role: m.role || 'user',
@@ -150,51 +196,88 @@ export async function POST(req: Request) {
         metadata: m.metadata,
     }));
 
-    // Cascade try loop across all models
-    for (const modelName of modelNames) {
-        try {
-            const agent = new ToolLoopAgent({
-                model: google(modelName),
-                instructions: systemInstructions,
-                tools: {
-                    checkTrafficFines: checkTrafficFinesTool,
-                },
-            });
+    // Cascade try loop across all models if API key exists
+    if (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+        for (const modelName of modelNames) {
+            try {
+                const agent = new ToolLoopAgent({
+                    model: google(modelName),
+                    instructions: systemInstructions,
+                    tools: {
+                        checkTrafficFines: checkTrafficFinesTool,
+                        checkAadhaarStatus: checkAadhaarStatusTool,
+                        checkPanInfo: checkPanInfoTool,
+                    },
+                });
 
-            return await createAgentUIStreamResponse({
-                agent,
-                uiMessages: formattedMessages,
-            });
-        } catch (err: any) {
-            console.warn(`Model ${modelName} failed or exhausted. Trying next model...`, err.message || err);
-            lastError = err;
+                return await createAgentUIStreamResponse({
+                    agent,
+                    uiMessages: formattedMessages,
+                });
+            } catch (err: any) {
+                console.warn(`Model ${modelName} failed. Trying next...`, err.message || err);
+                lastError = err;
+            }
         }
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // FALLBACK: Quota exceeded/exhausted on all models. Generate local mock response.
+    // FALLBACK INTENT ENGINE: For instant responsiveness and offline demoing
     // ────────────────────────────────────────────────────────────────────────
-    console.warn('All Gemini models exhausted. Launching local fallback stream...', lastError);
-
-    // Get the user's latest message text
-    const lastUserMsg = formattedMessages.reverse().find((m: any) => m.role === 'user');
+    const lastUserMsg = formattedMessages.slice().reverse().find((m: any) => m.role === 'user');
     const textPart = lastUserMsg?.parts?.find((p: any) => p.type === 'text')?.text || '';
-    const query = textPart.toLowerCase();
+    const query = textPart.toLowerCase().trim();
 
-    // 1. Off-topic check (Prompt Guard)
-    const isOffTopic = query.includes('recipe') || 
-                       query.includes('code') || 
-                       query.includes('movie') || 
-                       query.includes('song') || 
-                       query.includes('joke');
-
-    if (isOffTopic) {
+    // 1. Aadhaar status flow
+    if (query === 'aadhaar status' || query === 'check aadhaar status' || query === 'check my aadhaar status') {
         return createFallbackStreamResponse(
-            "I understand you're inquiring about that topic. As JanSeva AI, I am strictly authorized to assist with Indian public services and civic queries. Please ask about traffic challans, passport booking, or other official services."
+            "I can help with that. Please provide your 14-digit Enrollment ID (EID) or Aadhaar Number to proceed."
         );
     }
 
-    // 2. Traffic fine query check
+    if (
+        query.includes('4321') ||
+        query.includes('aadhaar') ||
+        query.includes('eid') ||
+        /^\d{4,14}$/.test(query.replace(/\*/g, ''))
+    ) {
+        const masked = query.includes('*') ? query : '********4321';
+        return createFallbackStreamResponse(
+            `Here is the latest verified status for your Aadhaar request (${masked}):`,
+            {
+                name: 'checkAadhaarStatus',
+                callId: 'call_aadhaar_' + Date.now(),
+                output: {
+                    status: 'GENERATED_DISPATCHED',
+                    aadhaarNumber: masked,
+                    name: 'Ramesh Sharma',
+                    message: 'Your Aadhaar has been generated and sent via post. You can also download the e-Aadhaar from the official UIDAI portal.',
+                    dispatchDate: '24-02-2026',
+                    trackingNumber: 'IN984210492IN',
+                }
+            }
+        );
+    }
+
+    // 2. PAN Card flow
+    if (query.includes('pan') || query.includes('abcde1234f')) {
+        return createFallbackStreamResponse(
+            "I found your active PAN details and UIDAI linkage verification in the NSDL database:",
+            {
+                name: 'checkPanInfo',
+                callId: 'call_pan_' + Date.now(),
+                output: {
+                    status: 'ACTIVE',
+                    panNumber: 'ABCDE1234F',
+                    name: 'Ramesh Sharma',
+                    category: 'Individual',
+                    aadhaarLinked: true,
+                }
+            }
+        );
+    }
+
+    // 3. Traffic fine query check
     if (query.includes('dl01ab1234') || query.includes('mh02cd5678') || query.includes('challan') || query.includes('fine') || query.includes('traffic')) {
         const isMh = query.includes('mh02cd5678');
         const vehicle = isMh ? 'MH02CD5678' : 'DL01AB1234';
@@ -218,14 +301,14 @@ export async function POST(req: Request) {
             `I found a pending e-Challan violation for vehicle ${vehicle} in the Parivahan database. Please review the details and proceed with secure payment.`,
             {
                 name: 'checkTrafficFines',
-                callId: 'call_fallback_' + Date.now(),
+                callId: 'call_traffic_' + Date.now(),
                 output,
             }
         );
     }
 
-    // Default conversational reply
+    // Default reply
     return createFallbackStreamResponse(
-        "Welcome to JanSeva AI. I can assist you with checking traffic fines and booking public services. Try asking: 'Check traffic fines for DL01AB1234'"
+        "Welcome to JanSeva AI — your official Indian public service gateway. How can I assist you today?"
     );
 }
