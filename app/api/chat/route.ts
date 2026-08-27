@@ -16,87 +16,59 @@ const google = createGoogleGenerativeAI({
 
 export const maxDuration = 30;
 
+// Helper: Query MongoDB for a vehicle record
+async function queryChallanDatabase(vehicleNo: string) {
+    const normalizedVeh = (vehicleNo || '').replace(/[\s-]/g, '').trim().toUpperCase();
+    if (!normalizedVeh) return null;
+
+    if (process.env.MONGODB_URI) {
+        try {
+            await connectToDatabase();
+            const dbRecord = await Challan.findOne({ vehicleNo: normalizedVeh });
+            if (dbRecord) {
+                return {
+                    status: 'FOUND',
+                    challanId: dbRecord.challanId,
+                    vehicle: dbRecord.vehicleNo,
+                    offense: dbRecord.offense,
+                    amount: dbRecord.amount,
+                    date: dbRecord.date,
+                };
+            }
+        } catch (dbErr) {
+            console.warn('MongoDB query failed:', dbErr);
+        }
+    }
+    return {
+        status: 'NOT_FOUND',
+        vehicle: normalizedVeh,
+        message: `No pending fines found for vehicle ${normalizedVeh}. Drive safely!`,
+    };
+}
+
 // 1. Tool: Check Traffic Fines
 const checkTrafficFinesTool = tool({
-    description: 'Look up pending traffic fines and e-Challan records for a vehicle registration number in Parivahan database.',
+    description: 'Look up pending traffic fines and e-Challan records for a vehicle registration number in the Parivahan database.',
     parameters: z.object({
-        vehicleNo: z.string().optional().describe('Vehicle registration number, e.g. DL01AB1234 or MH02CD5678'),
+        vehicleNo: z.string().describe('Vehicle registration number, e.g. DL01AB1234 or MH02CD5678'),
     }),
-    execute: async (args: any) => {
-        const rawVeh = args?.vehicleNo || args?.vehicleNumber || args?.vehicle || '';
-        const normalizedVeh = rawVeh.trim().toUpperCase();
-
-        if (!normalizedVeh) {
-            return {
-                status: 'NOT_FOUND',
-                vehicle: '',
-                message: 'Please provide a valid vehicle registration number (e.g. DL01AB1234).',
-            };
-        }
-
-        // Check MongoDB if configured
-        if (process.env.MONGODB_URI) {
-            try {
-                await connectToDatabase();
-                const dbRecord = await Challan.findOne({ vehicleNo: normalizedVeh });
-                if (dbRecord) {
-                    return {
-                        status: 'FOUND',
-                        challanId: dbRecord.challanId,
-                        vehicle: dbRecord.vehicleNo,
-                        offense: dbRecord.offense,
-                        amount: dbRecord.amount,
-                        date: dbRecord.date,
-                    };
-                }
-            } catch (dbErr) {
-                console.warn('MongoDB query bypassed, using fallback dataset:', dbErr);
-            }
-        }
-
-        if (normalizedVeh === 'DL01AB1234') {
-            return {
-                status: 'FOUND',
-                challanId: 'CH-2026-88349',
-                vehicle: 'DL01AB1234',
-                offense: 'Over Speeding (Sec 183 MVA)',
-                amount: 1000,
-                date: '14-02-2026',
-            };
-        }
-
-        if (normalizedVeh === 'MH02CD5678') {
-            return {
-                status: 'FOUND',
-                challanId: 'CH-2026-44120',
-                vehicle: 'MH02CD5678',
-                offense: 'Signal Jump (Sec 184 MVA)',
-                amount: 500,
-                date: '20-02-2026',
-            };
-        }
-
-        return {
-            status: 'NOT_FOUND',
-            vehicle: normalizedVeh,
-            message: `No pending fines found for vehicle ${normalizedVeh}. Drive safely!`,
-        };
+    execute: async ({ vehicleNo }: { vehicleNo: string }) => {
+        return await queryChallanDatabase(vehicleNo);
     },
 } as any);
 
 // 2. Tool: Check Aadhaar Status
 const checkAadhaarStatusTool = tool({
-    description: 'Check status of an Aadhaar enrollment or update request using Aadhaar number or Enrollment ID.',
+    description: 'Check status of an Aadhaar enrollment or update request using Enrollment ID or masked identifier.',
     parameters: z.object({
-        identifier: z.string().describe('The 12-digit Aadhaar number, 14-digit EID, or masked identifier'),
+        identifier: z.string().describe('The enrollment identifier or masked Aadhaar'),
     }),
-    execute: async (args: any) => {
-        const id = args?.identifier || '********4321';
+    execute: async () => {
         return {
             status: 'GENERATED_DISPATCHED',
-            aadhaarNumber: id.includes('*') ? id : '********' + id.slice(-4),
+            aadhaarNumber: '[Aadhaar Redacted]',
             name: 'Ramesh Sharma',
-            message: 'Your Aadhaar has been generated and sent via post. You can also download the e-Aadhaar from the official UIDAI portal.',
+            message: 'Your Aadhaar has been generated and dispatched. You can download the e-Aadhaar from the official UIDAI portal.',
             dispatchDate: '24-02-2026',
             trackingNumber: 'IN984210492IN',
         };
@@ -122,21 +94,14 @@ const checkPanInfoTool = tool({
 
 const systemInstructions = `You are JanSeva AI, the official Indian public service digital assistant and generative UI gateway.
 - Be polite, concise, helpful, and citizen-friendly.
-- When a citizen asks about traffic fines or challans, trigger checkTrafficFines.
-- When a citizen asks about Aadhaar status, ask for their 14-digit EID or Aadhaar number, and trigger checkAadhaarStatus.
+- When a citizen asks about traffic fines or challans without a vehicle number, ask for the vehicle number BEFORE triggering checkTrafficFines.
+- When a citizen asks about Aadhaar status, trigger checkAadhaarStatus.
 - When a citizen asks about PAN card details, trigger checkPanInfo.
-- Strictly decline non-civic inquiries and remind the user that you only assist with official public services.
-- NEVER output real numeric digits for Aadhaar. Always use masked [Aadhaar Redacted] or ********4321.`;
+- Strictly decline non-civic inquiries and state that you only assist with official public services.
+- NEVER generate, echo, or output actual numeric digits for Aadhaar. Always use [Aadhaar Redacted].`;
 
-const modelNames = [
-    'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-3.1-flash-lite',
-    'gemini-3.6-flash',
-];
-
-// Schema-compliant fallback stream response for AI SDK 7
-function createFallbackStreamResponse(text: string, toolCall?: { name: string, callId: string, output: any }) {
+// Universal UI Stream Fallback Generator
+function createFallbackStreamResponse(text: string, toolCall?: { name: string; callId: string; output: any }) {
     const textId = 'text-' + Date.now();
     return createUIMessageStreamResponse({
         stream: createUIMessageStream({
@@ -174,19 +139,18 @@ function createFallbackStreamResponse(text: string, toolCall?: { name: string, c
                         id: textId,
                         delta: `${word} `,
                     } as any);
-                    await new Promise(r => setTimeout(r, 12));
+                    await new Promise((r) => setTimeout(r, 12));
                 }
 
                 writer.write({ type: 'text-end', id: textId } as any);
                 writer.write({ type: 'finish-step' } as any);
                 writer.write({ type: 'finish', finishReason: 'stop' } as any);
-            }
-        })
+            },
+        }),
     });
 }
 
 export async function POST(req: Request) {
-    let lastError: any = null;
     const { messages } = await req.json();
 
     const formattedMessages = (messages || []).map((m: any, idx: number) => ({
@@ -196,12 +160,17 @@ export async function POST(req: Request) {
         metadata: m.metadata,
     }));
 
-    // Cascade try loop across all models if API key exists
+    // 1. Attempt Execution with Gemini Agent
     if (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-        for (const modelName of modelNames) {
+        const fallbackModels = [
+            google('gemini-3.5-flash-lite'),
+            google('gemini-3.1-flash-lite'),
+        ];
+
+        for (const model of fallbackModels) {
             try {
                 const agent = new ToolLoopAgent({
-                    model: google(modelName),
+                    model,
                     instructions: systemInstructions,
                     tools: {
                         checkTrafficFines: checkTrafficFinesTool,
@@ -215,54 +184,57 @@ export async function POST(req: Request) {
                     uiMessages: formattedMessages,
                 });
             } catch (err: any) {
-                console.warn(`Model ${modelName} failed. Trying next...`, err.message || err);
-                lastError = err;
+                console.warn(`Model failed, switching to next available engine:`, err?.message || err);
             }
         }
     }
 
-    // ────────────────────────────────────────────────────────────────────────
-    // FALLBACK INTENT ENGINE: For instant responsiveness and offline demoing
-    // ────────────────────────────────────────────────────────────────────────
+    // 2. Intelligent Fallback (Queries Live DB even when LLM is Offline)
     const lastUserMsg = formattedMessages.slice().reverse().find((m: any) => m.role === 'user');
     const textPart = lastUserMsg?.parts?.find((p: any) => p.type === 'text')?.text || '';
     const query = textPart.toLowerCase().trim();
 
-    // 1. Aadhaar status flow
-    if (query === 'aadhaar status' || query === 'check aadhaar status' || query === 'check my aadhaar status') {
+    // Traffic Challan check in Fallback Mode
+    const vehicleMatch = query.match(/[a-z]{2}\s*[-]?\s*\d{1,2}\s*[-]?\s*[a-z]{1,2}\s*[-]?\s*\d{4}/i);
+    if (vehicleMatch || query.includes('challan') || query.includes('fine')) {
+        const targetVeh = vehicleMatch ? vehicleMatch[0] : 'DL01AB1234';
+        const dbResult = await queryChallanDatabase(targetVeh);
+
         return createFallbackStreamResponse(
-            "I can help with that. Please provide your 14-digit Enrollment ID (EID) or Aadhaar Number to proceed."
+            dbResult?.status === 'FOUND'
+                ? `I located an active record for vehicle ${targetVeh} in the Parivahan database.`
+                : `I checked the Parivahan database and found no pending violations for ${targetVeh}.`,
+            {
+                name: 'checkTrafficFines',
+                callId: 'call_traffic_' + Date.now(),
+                output: dbResult,
+            }
         );
     }
 
-    if (
-        query.includes('4321') ||
-        query.includes('aadhaar') ||
-        query.includes('eid') ||
-        /^\d{4,14}$/.test(query.replace(/\*/g, ''))
-    ) {
-        const masked = query.includes('*') ? query : '********4321';
+    // Aadhaar flow in Fallback Mode
+    if (query.includes('aadhaar') || query.includes('eid')) {
         return createFallbackStreamResponse(
-            `Here is the latest verified status for your Aadhaar request (${masked}):`,
+            'Here is the verified status for your Aadhaar request:',
             {
                 name: 'checkAadhaarStatus',
                 callId: 'call_aadhaar_' + Date.now(),
                 output: {
                     status: 'GENERATED_DISPATCHED',
-                    aadhaarNumber: masked,
+                    aadhaarNumber: '[Aadhaar Redacted]',
                     name: 'Ramesh Sharma',
-                    message: 'Your Aadhaar has been generated and sent via post. You can also download the e-Aadhaar from the official UIDAI portal.',
+                    message: 'Your Aadhaar has been generated and dispatched.',
                     dispatchDate: '24-02-2026',
                     trackingNumber: 'IN984210492IN',
-                }
+                },
             }
         );
     }
 
-    // 2. PAN Card flow
-    if (query.includes('pan') || query.includes('abcde1234f')) {
+    // PAN Card flow in Fallback Mode
+    if (query.includes('pan') || /[a-z]{5}\d{4}[a-z]/i.test(query)) {
         return createFallbackStreamResponse(
-            "I found your active PAN details and UIDAI linkage verification in the NSDL database:",
+            'I found your active PAN details and UIDAI linkage verification in the NSDL database:',
             {
                 name: 'checkPanInfo',
                 callId: 'call_pan_' + Date.now(),
@@ -272,43 +244,13 @@ export async function POST(req: Request) {
                     name: 'Ramesh Sharma',
                     category: 'Individual',
                     aadhaarLinked: true,
-                }
+                },
             }
         );
     }
 
-    // 3. Traffic fine query check
-    if (query.includes('dl01ab1234') || query.includes('mh02cd5678') || query.includes('challan') || query.includes('fine') || query.includes('traffic')) {
-        const isMh = query.includes('mh02cd5678');
-        const vehicle = isMh ? 'MH02CD5678' : 'DL01AB1234';
-        const output = isMh ? {
-            status: 'FOUND',
-            challanId: 'CH-2026-44120',
-            vehicle: 'MH02CD5678',
-            offense: 'Signal Jump (Sec 184 MVA)',
-            amount: 500,
-            date: '20-02-2026',
-        } : {
-            status: 'FOUND',
-            challanId: 'CH-2026-88349',
-            vehicle: 'DL01AB1234',
-            offense: 'Over Speeding (Sec 183 MVA)',
-            amount: 1000,
-            date: '14-02-2026',
-        };
-
-        return createFallbackStreamResponse(
-            `I found a pending e-Challan violation for vehicle ${vehicle} in the Parivahan database. Please review the details and proceed with secure payment.`,
-            {
-                name: 'checkTrafficFines',
-                callId: 'call_traffic_' + Date.now(),
-                output,
-            }
-        );
-    }
-
-    // Default reply
+    // Default civic response
     return createFallbackStreamResponse(
-        "Welcome to JanSeva AI — your official Indian public service gateway. How can I assist you today?"
+        'Welcome to JanSeva AI — your official Indian public service gateway. How can I assist you with civic services today?'
     );
 }

@@ -28,7 +28,7 @@ export function AadhaarStatusCard({ result }: { result?: AadhaarResult }) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `e-Aadhaar_${result?.aadhaarNumber ? result.aadhaarNumber.replace(/\*/g, "X") : "4321"}.pdf`;
+      link.download = `e-Aadhaar_[Aadhaar Redacted].pdf`;
       link.click();
       URL.revokeObjectURL(url);
     }, 1000);
@@ -62,7 +62,7 @@ export function AadhaarStatusCard({ result }: { result?: AadhaarResult }) {
         <div className="bg-slate-50 dark:bg-[#181e29] rounded-xl p-3 border border-slate-200 dark:border-slate-700/60 text-xs space-y-2 animate-in fade-in duration-200">
           <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 font-mono text-[11px]">
             <span>Speed Post Consignment:</span>
-            <span className="text-slate-800 dark:text-slate-200 font-semibold">{result?.trackingNumber || "IN984210492IN"}</span>
+            <span className="text-slate-800 dark:text-slate-200 font-semibold">{result?.trackingNumber || "[Aadhaar Redacted]"}</span>
           </div>
           <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 text-[11px]">
             <span>Dispatch Date:</span>

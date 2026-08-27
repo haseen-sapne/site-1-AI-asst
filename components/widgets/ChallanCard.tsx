@@ -6,7 +6,7 @@ import { CheckCircle2, ShieldAlert, CreditCard, Check } from "lucide-react";
 export function ChallanCard({ result }: { result: any }) {
   const [paid, setPaid] = useState(false);
 
-  if (result.status === "NOT_FOUND") {
+  if (!result || result.status === "NOT_FOUND") {
     return (
       <div className="w-full max-w-md bg-emerald-50/80 dark:bg-[#202735] border border-emerald-500/30 rounded-2xl p-5 shadow-xl transition-all space-y-2 my-1">
         <div className="flex items-center gap-3">
@@ -21,7 +21,7 @@ export function ChallanCard({ result }: { result: any }) {
           </div>
         </div>
         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-normal pt-1">
-          {result.message || `No pending violations found for vehicle ${result.vehicle || ""}. Drive safely!`}
+          {result?.message || "No pending violations found. Drive safely!"}
         </p>
       </div>
     );

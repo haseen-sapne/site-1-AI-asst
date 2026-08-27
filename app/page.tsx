@@ -294,6 +294,27 @@ export default function ChatPage() {
           );
         })}
 
+        {/* Thinking Indicator — shown while waiting for AI response */}
+        {status === 'submitted' && (
+          <div className="flex flex-col items-start max-w-full animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 mb-1.5 px-1">
+              <div className="h-6 w-6 rounded-full bg-[#1e2430] dark:bg-[#232a37] border border-slate-700/60 flex items-center justify-center text-slate-100 shadow-sm flex-shrink-0">
+                <ChatBotIcon className="w-3.5 h-3.5 text-slate-100" />
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                JanSeva AI
+              </span>
+            </div>
+            <div className="bg-white dark:bg-[#242b38] border border-slate-200/90 dark:border-slate-700/50 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm">
+              <div className="flex gap-1.5 items-center">
+                <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Global error notification */}
         {error && (
           <div className="flex items-center gap-2.5 p-3 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl max-w-md mx-auto">
