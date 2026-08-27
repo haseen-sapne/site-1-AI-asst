@@ -3,12 +3,11 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import React, { useState, useRef, useEffect } from 'react';
-import { ChallanCard } from "@/components/widgets/ChallanCard";
-import { AadhaarStatusCard } from "@/components/widgets/AadhaarStatusCard";
-import { PanCardWidget } from "@/components/widgets/PanCardWidget";
 import { ChatBotIcon } from "@/components/widgets/ChatBotIcon";
 import { DarkModeToggle } from "@/components/widgets/DarkModeToggle";
 import { TesterHelperDialog } from "@/components/widgets/TesterHelperDialog";
+import { DynamicForm } from "@/components/widgets/DynamicForm";
+import { Badge } from "@/components/ui/badge";
 import {
   Send,
   User as UserIcon,
@@ -205,9 +204,8 @@ export default function ChatPage() {
               >
                 {/* Message Parts */}
                 {m.parts?.map((part: any, i: number) => {
-                  if (part.type === 'step-start') return null;
-
-                  // Text part
+                  
+                  // 1. Render standard text parts
                   if (part.type === 'text') {
                     const textContent = part.text ?? '';
                     if (!textContent) return null;
@@ -218,64 +216,100 @@ export default function ChatPage() {
                     );
                   }
 
-                  // Tool: checkTrafficFines
-                  if (part.type === 'tool-checkTrafficFines') {
-                    const { state } = part;
-                    if (state === 'input-streaming' || state === 'input-available') {
+                  // 2. NORMALIZE TOOL DATA (Handles both Vercel AI SDK and manual fallbacks)
+                  const isStandardTool = part.type === 'tool-invocation';
+                  const toolName = isStandardTool ? part.toolInvocation?.toolName : part.type?.replace('tool-', '');
+                  const toolState = isStandardTool ? part.toolInvocation?.state : (part as any).state;
+                  const toolResult = isStandardTool ? part.toolInvocation?.result : (part as any).output;
+
+                  // 3. Render the Dynamic Form
+                  if (toolName === 'createApplicationForm') {
+                    if (toolState === 'result' || toolResult || toolState === 'output-available') {
                       return (
-                        <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                          <span>Searching Parivahan Vahan & Challan Registry...</span>
+                        <div key={i} className="w-full mt-2">
+                          <DynamicForm result={toolResult} />
                         </div>
                       );
                     }
-                    if (state === 'output-available') {
-                      return (
-                        <div key={i} className="w-full">
-                          <ChallanCard result={part.output} />
-                        </div>
-                      );
-                    }
+                    return (
+                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
+                        <span>Generating custom application form...</span>
+                      </div>
+                    );
                   }
 
-                  // Tool: checkAadhaarStatus
-                  if (part.type === 'tool-checkAadhaarStatus') {
-                    const { state } = part;
-                    if (state === 'input-streaming' || state === 'input-available') {
+                  // 4. Render Passport Tracking Output
+                  if (toolName === 'trackPassport') {
+                    if (toolState === 'result' || toolResult || toolState === 'output-available') {
+                      
+                      // Normalize: toolResult might be a JSON string from the SDK
+                      let parsed = toolResult;
+                      if (typeof parsed === 'string') {
+                        try { parsed = JSON.parse(parsed); } catch { /* keep as-is */ }
+                      }
+
+                      // NEED_INPUT means the AI will ask the user via text — don't render anything
+                      if (!parsed || typeof parsed !== 'object' || parsed.status === 'NEED_INPUT') {
+                        return null;
+                      }
+
+                      // Handle Errors or Not Found cleanly
+                      if (parsed.status === 'ERROR' || parsed.status === 'NOT_FOUND') {
+                        return (
+                          <div key={i} className="w-full mt-2 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg text-rose-700 dark:text-rose-400 text-xs">
+                            <AlertCircle className="w-4 h-4 inline-block mr-1.5 mb-0.5" />
+                            {parsed.message}
+                          </div>
+                        );
+                      }
+
+                      // Render successful tracking details
                       return (
-                        <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                          <span>Authenticating with UIDAI Portal Gateway...</span>
+                        <div key={i} className="w-full mt-2 p-4 bg-emerald-50 dark:bg-[#1a2721] border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-emerald-900 dark:text-emerald-100 text-sm shadow-sm">
+                          <div className="flex items-center justify-between border-b border-emerald-200/50 dark:border-emerald-800/50 pb-2 mb-2">
+                            <span className="font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                              {parsed.appId || 'Passport Application'}
+                            </span>
+                            <Badge className="bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100 hover:bg-emerald-200 text-[10px]">
+                              {parsed.status}
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-1.5 text-xs text-emerald-800/80 dark:text-emerald-200/80">
+                            {parsed.serviceType && (
+                              <p><strong className="text-emerald-900 dark:text-emerald-100">Service:</strong> {parsed.serviceType}</p>
+                            )}
+                            {parsed.personalDetails && (
+                              <p><strong className="text-emerald-900 dark:text-emerald-100">Applicant:</strong> {parsed.personalDetails.firstName} {parsed.personalDetails.lastName}</p>
+                            )}
+                            {parsed.appointment?.pskLocation && (
+                              <p><strong className="text-emerald-900 dark:text-emerald-100">Location:</strong> {parsed.appointment.pskLocation}</p>
+                            )}
+                          </div>
                         </div>
                       );
                     }
-                    if (state === 'output-available') {
-                      return (
-                        <div key={i} className="w-full">
-                          <AadhaarStatusCard result={part.output} />
-                        </div>
-                      );
-                    }
+                    
+                    return (
+                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
+                        <span>Connecting to Passport Seva servers...</span>
+                      </div>
+                    );
                   }
 
-                  // Tool: checkPanInfo
-                  if (part.type === 'tool-checkPanInfo') {
-                    const { state } = part;
-                    if (state === 'input-streaming' || state === 'input-available') {
-                      return (
-                        <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                          <span>Querying NSDL & Income Tax Department...</span>
-                        </div>
-                      );
+                  // 5. Render Knowledge Base Loader
+                  if (toolName === 'searchKnowledgeBase') {
+                    if (toolState === 'result' || toolResult || toolState === 'output-available') {
+                      return null; // Don't render JSON here, let the AI talk normally below it
                     }
-                    if (state === 'output-available') {
-                      return (
-                        <div key={i} className="w-full">
-                          <PanCardWidget result={part.output} />
-                        </div>
-                      );
-                    }
+                    return (
+                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
+                        <span>Searching official government rulebooks...</span>
+                      </div>
+                    );
                   }
 
                   return null;

@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  experimental: {
-    serverComponentsExternalPackages: ['mongoose', '@google/genai'],
-  },
+  // We use serverExternalPackages instead of the experimental flag now
+  serverExternalPackages: ['mongoose'],
 };
 
 module.exports = nextConfig;
