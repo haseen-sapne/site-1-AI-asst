@@ -18,6 +18,8 @@ import {
   CreditCard,
   ShieldCheck,
   Search,
+  ExternalLink,
+  X,
 } from "lucide-react";
 
 interface TesterHelperDialogProps {
@@ -27,6 +29,7 @@ interface TesterHelperDialogProps {
 export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) {
   const [open, setOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [doodleDismissed, setDoodleDismissed] = useState(false);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard?.writeText(text);
@@ -45,6 +48,78 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
 
   return (
     <>
+      {/* Modern Tester Navigation Callout */}
+      {!doodleDismissed && !open && (
+        <div
+          className="fixed bottom-[72px] right-6 z-40 flex flex-col items-end pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-300 group"
+          role="region"
+          aria-label="Tester Navigation Hint"
+        >
+          {/* Sleek Modern Badge Card */}
+          <div
+            onClick={() => setOpen(true)}
+            className="relative flex items-center gap-2.5 bg-white/95 dark:bg-[#111724]/95 border border-slate-200/90 dark:border-blue-500/30 text-slate-900 dark:text-slate-100 px-3.5 py-2 rounded-2xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.12)] dark:shadow-[0_10px_35px_-5px_rgba(0,0,0,0.5)] backdrop-blur-xl hover:border-blue-500/50 dark:hover:border-blue-400/60 transition-all duration-200 cursor-pointer"
+          >
+            {/* Dismiss Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDoodleDismissed(true);
+              }}
+              className="absolute -top-2 -left-2 h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-slate-300 dark:border-slate-700 flex items-center justify-center text-[10px] shadow-sm transition-colors cursor-pointer"
+              title="Dismiss hint"
+              aria-label="Dismiss tester hint"
+            >
+              <X className="w-3 h-3" />
+            </button>
+
+            {/* Glowing Status Dot */}
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400" />
+            </span>
+
+            {/* Clean Modern Text */}
+            <div className="flex flex-col text-left">
+              <span className="text-xs font-semibold text-slate-900 dark:text-white tracking-tight">
+                If you are a tester
+              </span>
+              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                Click here for mock profiles & guides
+              </span>
+            </div>
+          </div>
+
+          {/* Minimalist Curved Pointer Arrow */}
+          <div
+            onClick={() => setOpen(true)}
+            className="cursor-pointer pr-7 -mt-0.5 transform transition-transform group-hover:translate-y-1"
+          >
+            <svg
+              width="36"
+              height="32"
+              viewBox="0 0 40 36"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="stroke-blue-600 dark:stroke-blue-400 drop-shadow-[0_2px_8px_rgba(59,130,246,0.3)]"
+            >
+              <path
+                d="M 12 4 C 24 4, 26 12, 26 24"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M 20 18 L 26 25 L 32 18"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
+      )}
+
       {/* Floating Action Button (FAB) positioned bottom-right */}
       <button
         id="tester-helper-fab"
@@ -76,35 +151,46 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
 
           <div className="space-y-4 pt-2">
             
-            {/* SECTION 1: PASSPORT SEVA (SITE 3) */}
+            {/* SECTION 1: PASSPORT SEVA (SITE 2) */}
             <div className="rounded-2xl border border-blue-200/80 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 font-bold text-xs text-blue-900 dark:text-blue-300">
                   <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span>Passport Seva Portal (Site 3 Microservice)</span>
+                  <span>Passport Seva Portal (Site 2 Microservice)</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    copyToClipboard(
-                      "Name: Rahul Sharma | DOB: 1995-08-20 | Address: 12 Janpath, New Delhi | Service: Fresh | PSK: Delhi - RPO Herald House, ITO",
-                      "pass_profile"
-                    )
-                  }
-                  className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-[#1a212e] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer active:scale-95 shadow-sm"
-                >
-                  {copiedKey === "pass_profile" ? (
-                    <>
-                      <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3 w-3" />
-                      <span>Copy Passport Details</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href="https://site-2-passportseva.vercel.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-300 bg-blue-100/70 dark:bg-blue-900/40 hover:bg-blue-200/70 dark:hover:bg-blue-800/60 px-2 py-1 rounded-lg border border-blue-200 dark:border-blue-700 transition-colors"
+                  >
+                    <span>Open Site 2</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      copyToClipboard(
+                        "Name: Rahul Sharma | DOB: 1995-08-20 | Address: 12 Janpath, New Delhi | Service: Fresh | PSK: Delhi - RPO Herald House, ITO",
+                        "pass_profile"
+                      )
+                    }
+                    className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-[#1a212e] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer active:scale-95 shadow-sm"
+                  >
+                    {copiedKey === "pass_profile" ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" />
+                        <span>Copy Details</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-white dark:bg-[#111620] p-2.5 rounded-xl border border-blue-100 dark:border-blue-950">
@@ -137,32 +223,43 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
               </div>
             </div>
 
-            {/* SECTION 2: PARIVAHAN (SITE 2) */}
+            {/* SECTION 2: PARIVAHAN (SITE 3) */}
             <div className="rounded-2xl border border-amber-200/80 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 font-bold text-xs text-amber-900 dark:text-amber-300">
                   <Car className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <span>Parivahan e-Challan Portal (Site 2 Microservice)</span>
+                  <span>Parivahan e-Challan Portal (Site 3 Microservice)</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    copyToClipboard("Vehicle: MH02CD5678 | Challan: CH-2026-44120", "parivahan_profile")
-                  }
-                  className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-[#1a212e] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer active:scale-95 shadow-sm"
-                >
-                  {copiedKey === "parivahan_profile" ? (
-                    <>
-                      <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3 w-3" />
-                      <span>Copy Vehicle Info</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href="https://site-3-parivahan.vercel.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 hover:bg-amber-200/70 dark:hover:bg-amber-800/60 px-2 py-1 rounded-lg border border-amber-200 dark:border-amber-700 transition-colors"
+                  >
+                    <span>Open Site 3</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      copyToClipboard("Vehicle: MH02CD5678 | Challan: CH-2026-44120", "parivahan_profile")
+                    }
+                    className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-[#1a212e] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer active:scale-95 shadow-sm"
+                  >
+                    {copiedKey === "parivahan_profile" ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" />
+                        <span>Copy Vehicle Info</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-white dark:bg-[#111620] p-2.5 rounded-xl border border-amber-100 dark:border-amber-950">

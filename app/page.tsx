@@ -24,6 +24,7 @@ import {
   AlertCircle,
   ChevronDown,
   User as UserIcon,
+  ExternalLink,
 } from "lucide-react";
 
 // Formatted rich text renderer for structured AI output
@@ -351,6 +352,33 @@ export default function HomePage() {
                   </button>
                 );
               })}
+            </div>
+
+            {/* Direct Microservice Portals (Site 2 & Site 3) */}
+            <div className="w-full max-w-2xl mt-4 flex flex-wrap items-center justify-center gap-3 pt-1">
+              <a
+                href="https://site-2-passportseva.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-200/80 dark:border-blue-800/60 bg-blue-50/70 dark:bg-[#131d2e] hover:bg-blue-100/80 dark:hover:bg-[#1a2840] text-blue-800 dark:text-blue-200 hover:text-blue-900 dark:hover:text-white text-xs font-medium shadow-sm transition-all duration-150 active:scale-95 group cursor-pointer hover:border-blue-300 dark:hover:border-blue-600"
+                title="Open Site 2: Passport Seva in a new tab"
+              >
+                <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                <span>Site 2: Passport Seva</span>
+                <ExternalLink className="w-3 h-3 text-blue-500/80 dark:text-blue-400/80 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </a>
+
+              <a
+                href="https://site-3-parivahan.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-amber-200/80 dark:border-amber-800/60 bg-amber-50/70 dark:bg-[#231d15] hover:bg-amber-100/80 dark:hover:bg-[#2f271a] text-amber-800 dark:text-amber-200 hover:text-amber-900 dark:hover:text-white text-xs font-medium shadow-sm transition-all duration-150 active:scale-95 group cursor-pointer hover:border-amber-300 dark:hover:border-amber-600"
+                title="Open Site 3: Parivahan Portal in a new tab"
+              >
+                <Car className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Site 3: Parivahan Portal</span>
+                <ExternalLink className="w-3 h-3 text-amber-500/80 dark:text-amber-400/80 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </a>
             </div>
           </section>
         ) : (
