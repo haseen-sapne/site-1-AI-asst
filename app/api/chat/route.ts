@@ -503,9 +503,8 @@ export async function POST(req: Request) {
     // 1. Attempt Execution with Gemini Agent
     if (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
         const fallbackModels = [
-            google('gemini-2.5-flash'),
-            google('gemini-2.0-flash'),
-            google('gemini-1.5-flash'),
+            google('gemini-3.5-flash-lite'),
+            google('gemini-3.1-flash-lite'),
         ];
 
         for (const model of fallbackModels) {

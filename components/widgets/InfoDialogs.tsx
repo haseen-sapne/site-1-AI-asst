@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Bot, Layers, Zap, Shield, CheckCircle2 } from "lucide-react";
+import { Layers, Zap, FileText, Car, Search, ShieldCheck } from "lucide-react";
 
 interface InfoDialogsProps {
   type: "howItWorks" | "services" | null;
@@ -29,12 +29,12 @@ export function InfoDialogs({ type, onClose, onSelectPrompt }: InfoDialogsProps)
             </div>
             <div>
               <DialogTitle className="text-lg font-bold">
-                {type === "howItWorks" ? "How Janseva AI Works" : "Explore Public Services"}
+                {type === "howItWorks" ? "How Janseva AI Works" : "Integrated Public Services"}
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
                 {type === "howItWorks"
                   ? "AI-Powered Citizen Assistance & Form Automation"
-                  : "Central & State Government Digital Services"}
+                  : "National Digital Portals & Real-Time Microservices"}
               </DialogDescription>
             </div>
           </div>
@@ -50,7 +50,7 @@ export function InfoDialogs({ type, onClose, onSelectPrompt }: InfoDialogsProps)
                 <div>
                   <h4 className="font-semibold text-slate-900 dark:text-white">Ask in Natural Language</h4>
                   <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                    Ask about any government scheme, eligibility rules, document checklists, or application deadlines in any Indian language.
+                    Ask about passport applications, traffic fines, vehicle RC details, or document requirements.
                   </p>
                 </div>
               </div>
@@ -62,7 +62,7 @@ export function InfoDialogs({ type, onClose, onSelectPrompt }: InfoDialogsProps)
                 <div>
                   <h4 className="font-semibold text-slate-900 dark:text-white">Generative UI & Interactive Forms</h4>
                   <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                    Janseva AI generates customized interactive forms on-the-fly and pre-fills them to save you hours of paperwork.
+                    Janseva AI generates interactive forms and Secure GovPay payment gateways directly inside your conversation.
                   </p>
                 </div>
               </div>
@@ -74,7 +74,7 @@ export function InfoDialogs({ type, onClose, onSelectPrompt }: InfoDialogsProps)
                 <div>
                   <h4 className="font-semibold text-slate-900 dark:text-white">Live Tracking & Validation</h4>
                   <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                    Track real-time passport status, PAN verification, and grievance updates directly via official microservices.
+                    Track real-time passport draft status (Site 3) and settle e-Challans (Site 2) with instant database updates.
                   </p>
                 </div>
               </div>
@@ -82,12 +82,12 @@ export function InfoDialogs({ type, onClose, onSelectPrompt }: InfoDialogsProps)
           ) : (
             <div className="grid grid-cols-2 gap-2.5">
               {[
-                { title: "Passport Seva", query: "How do I apply for a fresh passport?" },
-                { title: "Aadhaar Card", query: "How to update address in Aadhaar online?" },
-                { title: "PAN Card Status", query: "Check status of PAN card application" },
-                { title: "Income Tax", query: "Guide to filing ITR-1 income tax return" },
-                { title: "Ayushman Bharat", query: "Check PM-JAY health card eligibility" },
-                { title: "Pension Schemes", query: "Explain Atal Pension Yojana benefits" },
+                { title: "Passport Application", query: "I want to apply for a fresh passport" },
+                { title: "Passport Application Status", query: "Track passport application APP-2026-145351" },
+                { title: "Check Traffic Fines", query: "Check traffic fines for MH02CD5678" },
+                { title: "Pay Traffic Challan", query: "Pay challan CH-2026-44120" },
+                { title: "Passport Fees & Rules", query: "What is the fee and document checklist for a fresh 36-page passport?" },
+                { title: "Vehicle Clean Record", query: "Check traffic fines for DL01AB0000" },
               ].map((svc, idx) => (
                 <button
                   key={idx}
