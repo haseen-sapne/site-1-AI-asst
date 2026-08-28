@@ -24,6 +24,14 @@ const passportKnowledgeChunks = [
     {
         text: "Normal passport processing takes 15 to 30 days. Tatkaal processing takes 1 to 3 days. Police verification is required for both.",
         metadata: { serviceType: "PASSPORT", source: "Timeline_Rules" }
+    },
+    {
+        text: "Traffic fines in India vary by offense. Over Speeding (Sec 183 MVA) carries a fine of ₹2,000. Signal Jump (Sec 184 MVA) is ₹1,000. Driving Without Seatbelt is ₹1,000. Unauthorized Parking in Red Zone is ₹500.",
+        metadata: { serviceType: "PARIVAHAN", source: "Motor_Vehicles_Act" }
+    },
+    {
+        text: "To check pending traffic fines (e-Challans), citizens must provide their exact Vehicle Registration Number (e.g., DL01AB1234). Fines can be marked as PENDING, PAID, or DISPOSED.",
+        metadata: { serviceType: "PARIVAHAN", source: "Procedural_Guidelines" }
     }
 ];
 

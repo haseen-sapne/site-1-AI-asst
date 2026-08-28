@@ -128,43 +128,59 @@ export function DynamicForm({ result }: DynamicFormProps) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        {fields.map((field, index) => (
-          <div key={field.id || `field-${index}`} className="space-y-1 text-xs">
-            <label className="block font-medium text-slate-700 dark:text-slate-300">
-              {field.label} {field.required && <span className="text-red-500">*</span>}
-            </label>
+        {fields.map((field, index) => {
+          // Guaranteed unique state key for each field to prevent state collision
+          const getFieldKey = () => {
+            if (field.id && field.id !== 'undefined') return field.id;
+            const lower = (field.label || '').toLowerCase();
+            if (lower.includes('first')) return 'firstName';
+            if (lower.includes('last') || lower.includes('surname')) return 'lastName';
+            if (lower.includes('birth') || lower.includes('dob')) return 'dob';
+            if (lower.includes('address')) return 'address';
+            if (lower.includes('service')) return 'serviceType';
+            if (lower.includes('location') || lower.includes('psk')) return 'pskLocation';
+            return `field_${index}_${lower.replace(/[^a-z0-9]/g, '_')}`;
+          };
 
-            {field.type === 'select' ? (
-              <select
-                required={field.required}
-                value={formData[field.id] || ''}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-[#181e28] text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-[#9bb3f7]"
-              >
-                <option value="">Select an option...</option>
-                {field.options?.map((opt: any, oi: number) => {
-                  // Gemini may send options as strings or {value, label} objects
-                  const val = typeof opt === 'object' ? (opt.value || opt.label || '') : String(opt);
-                  const label = typeof opt === 'object' ? (opt.label || opt.value || '') : String(opt);
-                  return (
-                    <option key={`${val}-${oi}`} value={val}>
-                      {label}
-                    </option>
-                  );
-                })}
-              </select>
-            ) : (
-              <Input
-                type={field.type}
-                required={field.required}
-                placeholder={field.placeholder || `Enter ${field.label}`}
-                value={formData[field.id] || ''}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                className="h-9 text-xs"
-              />
-            )}
-          </div>
-        ))}
+          const key = getFieldKey();
+
+          return (
+            <div key={key} className="space-y-1 text-xs">
+              <label className="block font-medium text-slate-700 dark:text-slate-300">
+                {field.label} {field.required && <span className="text-red-500">*</span>}
+              </label>
+
+              {field.type === 'select' ? (
+                <select
+                  required={field.required}
+                  value={formData[key] || ''}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                  className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-[#181e28] text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-[#9bb3f7]"
+                >
+                  <option value="">Select an option...</option>
+                  {field.options?.map((opt: any, oi: number) => {
+                    const val = typeof opt === 'object' ? (opt.value || opt.label || '') : String(opt);
+                    const label = typeof opt === 'object' ? (opt.label || opt.value || '') : String(opt);
+                    return (
+                      <option key={`${val}-${oi}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <Input
+                  type={field.type}
+                  required={field.required}
+                  placeholder={field.placeholder || `Enter ${field.label}`}
+                  value={formData[key] || ''}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                  className="h-9 text-xs"
+                />
+              )}
+            </div>
+          );
+        })}
 
         {errorMessage && (
           <div className="flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 p-2 rounded-lg border border-rose-200 dark:border-rose-900/50">

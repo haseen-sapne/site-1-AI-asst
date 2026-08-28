@@ -11,7 +11,8 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { embed } from 'ai';
 import { KnowledgeDocument } from '@/lib/models';
 
-
+const rawSite2Url = process.env.SITE_2_URL || 'http://localhost:3003';
+const SITE_2_URL = rawSite2Url.replace(/\/+$/, '');
 const rawSite3Url = process.env.SITE_3_URL || 'http://localhost:3002';
 const SITE_3_URL = rawSite3Url.replace(/\/+$/, '');
 
@@ -156,6 +157,96 @@ const trackPassportTool = tool({
     },
 } as any);
 
+
+// 4. Parivahan Tool: Fetch Live e-Challans
+const checkTrafficFinesTool = tool({
+    description: 'Look up pending traffic fines, violations, and e-Challan records for a vehicle using its registration number.',
+    parameters: z.object({
+        vehicleNo: z.string().optional().describe('Vehicle registration number (e.g., DL01AB6234)'),
+        vehicleNumber: z.string().optional().describe('Alias for vehicle registration number'),
+        registrationNo: z.string().optional().describe('Alias for vehicle registration number'),
+        regNo: z.string().optional().describe('Alias for vehicle registration number'),
+        query: z.string().optional().describe('Query string containing vehicle registration number'),
+        input: z.string().optional().describe('Input string containing vehicle registration number'),
+    }),
+    execute: async (args: any) => {
+        console.log('[checkTrafficFines] Called with args:', JSON.stringify(args));
+        try {
+            // Fallback across potential LLM keys
+            const rawInput = args?.vehicleNo || args?.vehicleNumber || args?.registrationNo || args?.regNo || args?.query || args?.input || '';
+
+            // Extract standard Indian registration pattern (e.g. DL01AB6234, MH02CD5678)
+            const match = String(rawInput).replace(/[\s-]/g, '').match(/[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}/i);
+            const cleanVehNo = match ? match[0].toUpperCase() : String(rawInput).replace(/[\s-]/g, '').toUpperCase();
+
+            if (!cleanVehNo || cleanVehNo.length < 5) {
+                return {
+                    status: 'NEED_INPUT',
+                    message: 'Please provide a valid Vehicle Registration Number (e.g., DL01AB6234) to check for fines.'
+                };
+            }
+
+            const fetchUrl = `${SITE_2_URL}/api/challans/${cleanVehNo}`;
+            console.log('[checkTrafficFines] Fetching:', fetchUrl);
+
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+
+            const res = await fetch(fetchUrl, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+
+            const json = await res.json();
+            console.log('[checkTrafficFines] Response:', res.status, JSON.stringify(json).substring(0, 500));
+
+            // Check if challans exist or if vehicle was found with clean record
+            const isFound = res.ok && (json.status === 'FOUND' || json.success === true) && (
+                (Array.isArray(json.challans) && json.challans.length > 0) ||
+                (Array.isArray(json.data?.challans) && json.data.challans.length > 0) ||
+                (Array.isArray(json.data) && json.data.length > 0)
+            );
+
+            if (!isFound) {
+                return {
+                    status: 'NOT_FOUND',
+                    vehicleNo: cleanVehNo,
+                    message: json.message || `No pending fines found for vehicle ${cleanVehNo}. Record is clean!`
+                };
+            }
+
+            const rawVehicle = json.vehicle || json.data?.vehicle;
+            const vehicleData = typeof rawVehicle === 'object' && rawVehicle !== null
+                ? rawVehicle
+                : { vehicleNo: typeof rawVehicle === 'string' ? rawVehicle : cleanVehNo, ownerName: json.ownerName || json.data?.ownerName || 'Registered Owner' };
+
+            const challansList = json.challans || json.data?.challans || (Array.isArray(json.data) ? json.data : []);
+
+            return {
+                status: 'FOUND',
+                vehicleNo: cleanVehNo,
+                vehicle: vehicleData,
+                challans: challansList,
+                totalPendingAmount: json.totalPendingAmount || challansList.reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0),
+            };
+        } catch (err: any) {
+            console.error('[checkTrafficFines] Fetch Error:', err?.message || err);
+            if (err?.name === 'AbortError') {
+                return {
+                    status: 'ERROR',
+                    message: 'Request to Parivahan servers timed out. Please try again.'
+                };
+            }
+            return {
+                status: 'ERROR',
+                message: 'Unable to reach the Parivahan database at this time.'
+            };
+        }
+    },
+} as any);
+
 const systemInstructions = `You are JanSeva AI, the official Indian public service digital assistant and generative UI gateway.
 - Be polite, concise, helpful, and citizen-friendly.
 
@@ -170,6 +261,13 @@ const systemInstructions = `You are JanSeva AI, the official Indian public servi
 
 *** TRACKING & RAG RULES ***
 - PASSPORT TRACKING: Requires ONLY Application ID in format APP-YYYY-XXXXXX. Call 'trackPassport'.
+- PARIVAHAN (TRAFFIC FINES / E-CHALLAN):
+  * Valid vehicle number pattern: 2 state letters + 1-2 district digits + 0-3 series letters + 1-4 digits (e.g., DL01AB6234, MH02CD5678).
+  * When a user provides a vehicle number OR asks to check fines for a vehicle, IMMEDIATELY invoke the 'checkTrafficFines' tool with the parameter { vehicleNo: "<EXTRACTED_NUMBER>" }.
+  * DO NOT ask confirmation before checking if the vehicle number is already present in the prompt.
+  * If the user says "check my fines" without providing a vehicle number, ask them for their Vehicle Registration Number.
+  * When the user wants to pay their pending challan or confirms payment (e.g. "yes", "pay challan", "pay now", "proceed with payment"):
+    IMMEDIATELY invoke 'initiateChallanPayment' with the { challanId, amount, offense } found in the recent message history.
 - RAG KNOWLEDGE: When asking about fees, documents, or timelines, call 'searchKnowledgeBase'.
 
 *** PRIVACY ***
@@ -208,12 +306,49 @@ const createApplicationFormTool = tool({
     execute: async (args: any) => {
         console.log('[createApplicationForm] Called with args:', JSON.stringify(args).substring(0, 800));
 
-        // If Gemini sent empty fields, inject the default passport form fields
-        let fields = args.fields || [];
-        if (fields.length === 0) {
+        let rawFields = args.fields || [];
+        if (rawFields.length === 0) {
             console.log('[createApplicationForm] Empty fields array — injecting default passport fields');
-            fields = PASSPORT_DEFAULT_FIELDS;
+            rawFields = PASSPORT_DEFAULT_FIELDS;
         }
+
+        // Normalize each field to guarantee distinct IDs and correct input types
+        let fields = rawFields.map((f: any, idx: number) => {
+            const label = f.label || '';
+            const lower = label.toLowerCase();
+            let id = f.id;
+            let type = f.type || 'text';
+            let options = f.options;
+
+            if (!id || id === 'undefined') {
+                if (lower.includes('first')) id = 'firstName';
+                else if (lower.includes('last') || lower.includes('surname')) id = 'lastName';
+                else if (lower.includes('birth') || lower.includes('dob')) { id = 'dob'; type = 'date'; }
+                else if (lower.includes('address')) id = 'address';
+                else if (lower.includes('service')) id = 'serviceType';
+                else if (lower.includes('location') || lower.includes('psk')) id = 'pskLocation';
+                else id = `field_${idx}_${lower.replace(/[^a-z0-9]/g, '_')}`;
+            }
+
+            if (id === 'serviceType' && (!options || options.length === 0)) {
+                type = 'select';
+                options = ['Fresh', 'Re-issue', 'Tatkaal'];
+            }
+
+            if (id === 'pskLocation' && (!options || options.length === 0)) {
+                type = 'select';
+                options = ['Delhi - RPO Herald House, ITO', 'Mumbai - Bandra RPO', 'Bangalore - Lalbagh RPO', 'Chennai - T. Nagar RPO'];
+            }
+
+            return {
+                id,
+                label: f.label || id,
+                type,
+                options,
+                required: f.required !== false,
+                placeholder: f.placeholder,
+            };
+        });
 
         // Remove any fields that are already in prefilledData
         const prefilled = args.prefilledData || {};
@@ -229,6 +364,28 @@ const createApplicationFormTool = tool({
             fields,
             prefilledData: prefilled,
             generatedAt: new Date().toISOString(),
+        };
+    },
+} as any);
+const initiateChallanPaymentTool = tool({
+    description: 'Generate a payment gateway UI for a specific pending e-Challan.',
+    parameters: z.object({
+        challanId: z.any().optional().describe('The unique Challan ID to pay (e.g., CH-2026-88349)'),
+        amount: z.any().optional().describe('The fine amount in INR'),
+        offense: z.any().optional().describe('The traffic offense description'),
+    }),
+    execute: async (args: any) => {
+        console.log('[initiateChallanPayment] Called with args:', JSON.stringify(args));
+        const rawId = args?.challanId || args?.challan_id || args?.id || '';
+        const rawAmount = args?.amount || args?.totalAmount || args?.fine || 0;
+        const cleanAmount = typeof rawAmount === 'number' ? rawAmount : Number(String(rawAmount).replace(/[^0-9.]/g, '')) || 0;
+        const offense = args?.offense || args?.violation || 'Traffic Violation';
+
+        return {
+            status: 'PAYMENT_READY',
+            challanId: String(rawId || '').trim(),
+            amount: cleanAmount,
+            offense: String(offense || '').trim(),
         };
     },
 } as any);
@@ -286,7 +443,55 @@ function createFallbackStreamResponse(text: string, toolCall?: { name: string; c
 export async function POST(req: Request) {
     const { messages } = await req.json();
 
+    // Context fallback extraction for Challan Payment
+    let contextualChallanId = '';
+    let contextualAmount = 0;
+    let contextualOffense = 'Traffic Violation';
 
+    for (const m of messages || []) {
+        for (const p of m.parts || []) {
+            if (p.type === 'tool-invocation' && p.toolInvocation?.toolName === 'checkTrafficFines') {
+                const res = p.toolInvocation?.result;
+                if (res && Array.isArray(res.challans) && res.challans.length > 0) {
+                    const latest = res.challans[0];
+                    contextualChallanId = latest.challanId || contextualChallanId;
+                    contextualAmount = Number(latest.amount) || contextualAmount;
+                    contextualOffense = latest.offense || contextualOffense;
+                }
+            }
+            if (p.type === 'text' && typeof p.text === 'string') {
+                const chMatch = p.text.match(/\bCH-\d{4}-\d+\b/i);
+                if (chMatch) contextualChallanId = chMatch[0].toUpperCase();
+                const amtMatch = p.text.match(/₹\s*([\d,]+)/);
+                if (amtMatch) contextualAmount = Number(amtMatch[1].replace(/,/g, ''));
+                const offMatch = p.text.match(/\*\*Offense:\*\*\s*([^\n\r*]+)/i);
+                if (offMatch) contextualOffense = offMatch[1].trim();
+            }
+        }
+    }
+
+    const dynamicInitiateChallanPaymentTool = tool({
+        description: 'Generate a payment gateway UI for a specific pending e-Challan.',
+        parameters: z.object({
+            challanId: z.any().optional().describe('The unique Challan ID to pay (e.g., CH-2026-88349)'),
+            amount: z.any().optional().describe('The fine amount in INR'),
+            offense: z.any().optional().describe('The traffic offense description'),
+        }),
+        execute: async (args: any) => {
+            console.log('[initiateChallanPayment] Called with args:', JSON.stringify(args), 'context:', { contextualChallanId, contextualAmount, contextualOffense });
+            const rawId = args?.challanId || args?.challan_id || args?.id || contextualChallanId;
+            const rawAmount = args?.amount || args?.totalAmount || args?.fine || contextualAmount;
+            const cleanAmount = typeof rawAmount === 'number' ? rawAmount : Number(String(rawAmount).replace(/[^0-9.]/g, '')) || contextualAmount;
+            const offense = args?.offense || args?.violation || contextualOffense;
+
+            return {
+                status: 'PAYMENT_READY',
+                challanId: String(rawId || '').trim(),
+                amount: cleanAmount,
+                offense: String(offense || '').trim(),
+            };
+        },
+    } as any);
 
     const formattedMessages = (messages || []).map((m: any, idx: number) => ({
         id: m.id || `msg-${idx}-${Date.now()}`,
@@ -308,9 +513,11 @@ export async function POST(req: Request) {
                     model,
                     instructions: systemInstructions,
                     tools: {
+                        initiateChallanPayment: dynamicInitiateChallanPaymentTool,
                         searchKnowledgeBase: searchKnowledgeBaseTool,
                         trackPassport: trackPassportTool,
                         createApplicationForm: createApplicationFormTool,
+                        checkTrafficFines: checkTrafficFinesTool,
                     },
                 });
 
