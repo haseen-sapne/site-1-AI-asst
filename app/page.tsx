@@ -1,40 +1,200 @@
 "use client";
 
-import { useChat } from '@ai-sdk/react';
-import { PaymentWidget } from '@/components/widgets/PaymentWidget';
-import { DefaultChatTransport } from 'ai';
-import React, { useState, useRef, useEffect } from 'react';
-import { ChatBotIcon } from "@/components/widgets/ChatBotIcon";
-import { DarkModeToggle } from "@/components/widgets/DarkModeToggle";
-import { TesterHelperDialog } from "@/components/widgets/TesterHelperDialog";
+import React, { useState, useRef, useEffect } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { Navbar } from "@/components/widgets/Navbar";
+import { FeaturedServices } from "@/components/widgets/FeaturedServices";
+import { Footer } from "@/components/widgets/Footer";
+import { InfoDialogs } from "@/components/widgets/InfoDialogs";
 import { DynamicForm } from "@/components/widgets/DynamicForm";
+import { PaymentWidget } from "@/components/widgets/PaymentWidget";
+import { TesterHelperDialog } from "@/components/widgets/TesterHelperDialog";
+import { ChatBotIcon } from "@/components/widgets/ChatBotIcon";
 import { Badge } from "@/components/ui/badge";
 import {
-  Send,
+  ArrowUp,
+  Paperclip,
+  Mic,
+  MicOff,
+  Search,
+  FileText,
+  CreditCard,
   CheckCircle2,
-  User as UserIcon,
-  MoreVertical,
+  Building2,
+  UserCheck,
+  Activity,
+  RotateCcw,
+  Sparkles,
   Loader2,
   AlertCircle,
-  RotateCcw,
+  X,
+  ChevronRight,
+  ChevronDown,
+  User as UserIcon,
+  Send,
 } from "lucide-react";
 
-export default function ChatPage() {
-  const [input, setInput] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+// Formatted rich text renderer for structured AI output
+function renderFormattedSpan(str: string) {
+  const parts = str.split(/(\*\*.*?\*\*|\*.*?\*|\[.*?\]\(.*?\))/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-bold text-slate-900 dark:text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return (
+        <em key={i} className="italic text-slate-600 dark:text-slate-400">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+    const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+    if (linkMatch) {
+      return (
+        <a
+          key={i}
+          href={linkMatch[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 dark:text-blue-400 underline font-medium hover:text-blue-700"
+        >
+          {linkMatch[1]}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
+function FormattedMessageText({ text }: { text: string }) {
+  if (!text) return null;
+  const lines = text.split("\n");
+
+  return (
+    <div className="space-y-2 text-slate-800 dark:text-slate-200 text-sm leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1" />;
+        }
+        if (trimmed.startsWith("### ")) {
+          return (
+            <h4 key={idx} className="font-bold text-base text-slate-900 dark:text-white pt-1">
+              {renderFormattedSpan(trimmed.slice(4))}
+            </h4>
+          );
+        }
+        if (trimmed.startsWith("#### ")) {
+          return (
+            <h5 key={idx} className="font-semibold text-sm text-slate-900 dark:text-slate-100 pt-1">
+              {renderFormattedSpan(trimmed.slice(5))}
+            </h5>
+          );
+        }
+        if (trimmed.startsWith("* ") || trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-1">
+              <span className="text-blue-500 font-bold text-sm leading-tight mt-0.5">•</span>
+              <div className="flex-1 text-slate-700 dark:text-slate-300">
+                {renderFormattedSpan(trimmed.slice(2))}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <p key={idx} className="text-slate-700 dark:text-slate-300">
+            {renderFormattedSpan(trimmed)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function HomePage() {
+  const [input, setInput] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Identity");
+  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [infoModal, setInfoModal] = useState<"howItWorks" | "services" | null>(null);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isAutoScrollEnabledRef = useRef(true);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
 
-  const isLoading = status === 'submitted' || status === 'streaming';
+  const isLoading = status === "submitted" || status === "streaming";
+  const hasMessages = messages.length > 0;
+
+  const scrollToBottom = (smooth = true) => {
+    if (!chatContainerRef.current) return;
+    chatContainerRef.current.scrollTo({
+      top: chatContainerRef.current.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+  };
+
+  // Track if user intentionally scrolled up to read earlier text
+  const handleChatScroll = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
+    isAutoScrollEnabledRef.current = isNearBottom;
+    setShowScrollBottomBtn(!isNearBottom);
+  };
+
+  // Auto-scroll on content updates / streaming chunks
+  useEffect(() => {
+    if (hasMessages && isAutoScrollEnabledRef.current && chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages, isLoading, status, hasMessages]);
+
+  // Use ResizeObserver so dynamically expanding elements (streaming text, forms) trigger container auto-scroll
+  useEffect(() => {
+    if (!hasMessages || !chatContainerRef.current) return;
+
+    const container = chatContainerRef.current;
+    const observer = new ResizeObserver(() => {
+      if (isAutoScrollEnabledRef.current && container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [hasMessages]);
 
   const handleSendPrompt = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
-    setInput('');
-    sendMessage({ parts: [{ type: 'text', text: trimmed }] } as any);
+
+    let fullPrompt = trimmed;
+    if (attachedFile) {
+      fullPrompt = `[Attached Document: ${attachedFile}]\n${trimmed}`;
+      setAttachedFile(null);
+    }
+
+    isAutoScrollEnabledRef.current = true;
+    setShowScrollBottomBtn(false);
+    setInput("");
+    sendMessage({ parts: [{ type: "text", text: fullPrompt }] } as any);
+
+    setTimeout(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, 50);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -42,490 +202,792 @@ export default function ChatPage() {
     handleSendPrompt(input);
   };
 
-  // Auto-scroll on new messages
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendPrompt(input);
+    }
+  };
+
+  const handleToggleVoice = () => {
+    if (!isRecording) {
+      setIsRecording(true);
+      const sampleQueries = [
+        "How do I apply for a fresh passport online?",
+        "Check traffic fines for DL01AB6234",
+        "How can I update my address in Aadhaar card?",
+        "Track passport application APP-2026-145351",
+      ];
+      const randomQuery = sampleQueries[Math.floor(Math.random() * sampleQueries.length)];
+      setTimeout(() => {
+        setInput(randomQuery);
+        setIsRecording(false);
+      }, 1800);
+    } else {
+      setIsRecording(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAttachedFile(file.name);
+    }
+  };
+
+  // Focus textarea when conversation opens
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+    if (hasMessages) {
+      textareaRef.current?.focus();
+    }
+  }, [hasMessages]);
+
+  // Suggestion chips by category
+  const categoryChips: Record<string, Array<{ icon: any; label: string; prompt: string; color: string }>> = {
+    Identity: [
+      { icon: FileText, label: "Apply for Passport", prompt: "How do I apply for a fresh passport online?", color: "text-emerald-500" },
+      { icon: UserCheck, label: "Aadhaar Update", prompt: "How can I update my address or mobile number in Aadhaar card?", color: "text-blue-500" },
+      { icon: CreditCard, label: "PAN Card Status", prompt: "How to check PAN card application status online?", color: "text-purple-500" },
+      { icon: Building2, label: "Check Traffic Fines", prompt: "Check traffic fines for DL01AB6234", color: "text-amber-500" },
+      { icon: Activity, label: "Pension Schemes", prompt: "What are the eligibility criteria and benefits of Atal Pension Yojana (APY)?", color: "text-cyan-500" },
+    ],
+    Finance: [
+      { icon: Building2, label: "Income Tax Filing", prompt: "Explain ITR filing steps and deductions under New Tax Regime.", color: "text-amber-500" },
+      { icon: CreditCard, label: "Instant e-PAN", prompt: "How to get an instant e-PAN using Aadhaar e-KYC?", color: "text-purple-500" },
+      { icon: Activity, label: "PM Kisan Samman", prompt: "Check PM Kisan 17th installment release status and e-KYC requirement.", color: "text-emerald-500" },
+      { icon: Activity, label: "Sukanya Samriddhi", prompt: "What is the interest rate and tenure for Sukanya Samriddhi Account?", color: "text-pink-500" },
+    ],
+    Legal: [
+      { icon: FileText, label: "RTI Application", prompt: "How to file an online Right to Information (RTI) application?", color: "text-blue-500" },
+      { icon: Building2, label: "Property Registration", prompt: "What documents are required for land and property registry deed in India?", color: "text-indigo-500" },
+      { icon: UserCheck, label: "Legal Heir Certificate", prompt: "How to apply for Legal Heir Certificate online?", color: "text-purple-500" },
+    ],
+    Education: [
+      { icon: FileText, label: "National Scholarship", prompt: "Track National Scholarship Portal (NSP) scheme status and eligibility.", color: "text-amber-500" },
+      { icon: Building2, label: "DigiLocker Marksheets", prompt: "How to download verified CBSE 10th and 12th marksheets via DigiLocker?", color: "text-blue-500" },
+      { icon: UserCheck, label: "AICTE Student Schemes", prompt: "List top engineering and polytechnic scholarships by AICTE.", color: "text-emerald-500" },
+    ],
+    Health: [
+      { icon: Activity, label: "Ayushman Bharat PM-JAY", prompt: "Check hospital network and coverage for Ayushman Bharat PM-JAY card.", color: "text-emerald-500" },
+      { icon: UserCheck, label: "ABHA Health Account", prompt: "How to generate Ayushman Bharat Health Account (ABHA ID)?", color: "text-cyan-500" },
+      { icon: FileText, label: "Jan Aushadhi Kendra", prompt: "How to locate nearby PM Jan Aushadhi generic medicine store?", color: "text-rose-500" },
+    ],
+  };
+
+  const currentChips = categoryChips[selectedCategory] || categoryChips["Identity"];
 
   return (
-    <div className="flex flex-col h-screen w-full max-w-4xl mx-auto bg-[#f8fafc] dark:bg-[#181e28] text-slate-900 dark:text-slate-100 transition-colors duration-200 select-none md:border-x border-slate-200/80 dark:border-slate-800/80">
+    <div className="min-h-screen flex flex-col relative bg-white dark:bg-[#0b0e14] text-slate-900 dark:text-slate-100 selection:bg-blue-500 selection:text-white transition-colors duration-250">
       
-      {/* Top Navbar */}
-      <header className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/85 dark:bg-[#181e28]/95 backdrop-blur-md z-30 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          {/* Ashoka Lion Emblem Badge */}
-          <div className="h-9 w-9 rounded-full bg-[#1e2430] dark:bg-[#232a37] border border-slate-700/60 flex items-center justify-center text-slate-100 shadow-md">
-            <ChatBotIcon className="w-5 h-5 text-slate-100" />
-          </div>
+      {/* Ambient Glow */}
+      <div className="absolute top-0 inset-x-0 h-[640px] hero-ambient-glow pointer-events-none z-0" />
 
-          <div>
-            <h1 className="font-bold text-slate-900 dark:text-white text-[15px] tracking-tight leading-none">
-              JanSeva AI
+      {/* Top Navigation */}
+      <Navbar
+        onOpenHowItWorks={() => setInfoModal("howItWorks")}
+        onOpenServices={() => setInfoModal("services")}
+        onResetChat={() => setMessages([])}
+      />
+
+      {/* Main App Canvas */}
+      <main className="flex-1 z-10 flex flex-col items-center px-3 sm:px-6 w-full">
+        
+        {/* ========================================================================= */}
+        {/* SCENARIO 1: HERO VIEW (When no conversation is active)                  */}
+        {/* ========================================================================= */}
+        {!hasMessages ? (
+          <section className="w-full max-w-4xl mx-auto pt-8 sm:pt-14 pb-8 flex flex-col items-center text-center animate-in fade-in duration-300">
+            
+            {/* Title */}
+            <h1 className="text-3xl sm:text-5xl lg:text-[46px] font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.15] mb-8 animate-in fade-in duration-300">
+              How can I help you today?
             </h1>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-bold tracking-wider text-emerald-600 dark:text-emerald-400 uppercase">
-                ONLINE
-              </span>
-            </div>
-          </div>
-        </div>
 
-        {/* Top Right Controls: Dark Mode Button + Menu */}
-        <div className="flex items-center gap-2 relative">
-          {/* Dark Mode Toggle Button */}
-          <DarkModeToggle />
-
-          {/* Three Dots Menu Button */}
-          <div className="relative">
-            <button
-              type="button"
-              id="top-menu-btn"
-              onClick={() => setShowMenu(!showMenu)}
-              aria-label="Menu options"
-              className="h-9 w-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors cursor-pointer"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-
-            {showMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#202735] border border-slate-200 dark:border-slate-700/80 rounded-xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMenu(false);
-                    setMessages([]);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer flex items-center gap-2"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Clear Conversation</span>
-                </button>
-                <div className="border-t border-slate-200 dark:border-slate-700/60 my-1" />
-                <div className="px-4 py-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                  JanSeva AI • Citizen Public Gateway
+            {/* Central Search & AI Chat Box */}
+            <div className="w-full max-w-2xl bg-white dark:bg-[#141926] border border-slate-200/90 dark:border-slate-800 rounded-[28px] sm:rounded-[32px] p-4 sm:p-5 shadow-[0_12px_45px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_16px_50px_-15px_rgba(0,0,0,0.5)] transition-all duration-200 focus-within:ring-2 focus-within:ring-blue-500/20 dark:focus-within:ring-indigo-500/30 focus-within:border-blue-400 dark:focus-within:border-slate-700 text-left">
+              
+              <div className="flex items-center justify-between mb-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50/80 dark:bg-[#1b2333] border border-blue-100 dark:border-slate-700/80 text-blue-600 dark:text-blue-400 text-xs font-semibold">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>AI Assistant</span>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      </header>
 
-      {/* Message Stream */}
-      <main className="flex-1 overflow-y-auto px-4 md:px-6 py-6 space-y-6">
-        
-        {/* Initial Assistant Welcome Bubble with Suggestion Chips (Always shown at top) */}
-        <div className="flex flex-col gap-3 max-w-[90%] md:max-w-[80%] animate-in fade-in duration-300">
-          <div className="flex items-center gap-2 mb-0.5">
-            <div className="h-6 w-6 rounded-full bg-[#1e2430] dark:bg-[#232a37] border border-slate-700/60 flex items-center justify-center text-slate-200 shadow-sm flex-shrink-0">
-              <ChatBotIcon className="w-3.5 h-3.5 text-slate-100" />
-            </div>
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-              JanSeva AI
-            </span>
-          </div>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    rows={2}
+                    disabled={isLoading}
+                    placeholder="Ask about government services, traffic fines, passport forms, or track applications..."
+                    className="w-full bg-transparent text-sm sm:text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none leading-relaxed py-1"
+                  />
 
-          <div className="bg-white dark:bg-[#242b38] border border-slate-200/90 dark:border-slate-700/50 rounded-2xl rounded-tl-sm px-5 py-4 text-[13.5px] text-slate-800 dark:text-slate-200 leading-relaxed shadow-sm">
-            Welcome to <strong>JanSeva AI</strong> — your official Indian public service gateway. How can I assist you today?
-          </div>
+                  {attachedFile && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-300 mt-1">
+                      <Paperclip className="w-3 h-3 text-blue-500" />
+                      <span className="truncate max-w-[200px]">{attachedFile}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAttachedFile(null)}
+                        className="text-slate-400 hover:text-rose-500"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
-          {/* Quick Action Chips */}
-          <div className="flex flex-wrap gap-2 pt-1 pl-1">
-            <button
-              type="button"
-              onClick={() => handleSendPrompt("Check Traffic Fines")}
-              className="rounded-full border border-slate-300 dark:border-slate-700/80 bg-white dark:bg-[#242b38]/70 hover:bg-slate-100 dark:hover:bg-[#2e3748] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-4 py-1.5 text-xs font-medium transition-all shadow-sm cursor-pointer active:scale-95"
-            >
-              Check Traffic Fines
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSendPrompt("Check my Aadhaar status")}
-              className="rounded-full border border-slate-300 dark:border-slate-700/80 bg-white dark:bg-[#242b38]/70 hover:bg-slate-100 dark:hover:bg-[#2e3748] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-4 py-1.5 text-xs font-medium transition-all shadow-sm cursor-pointer active:scale-95"
-            >
-              Aadhaar Status
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSendPrompt("PAN Card Info")}
-              className="rounded-full border border-slate-300 dark:border-slate-700/80 bg-white dark:bg-[#242b38]/70 hover:bg-slate-100 dark:hover:bg-[#2e3748] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-4 py-1.5 text-xs font-medium transition-all shadow-sm cursor-pointer active:scale-95"
-            >
-              PAN Card Info
-            </button>
-          </div>
-        </div>
-
-        {/* Dynamic Messages Loop */}
-        {messages.map((m: any) => {
-          const isUser = m.role === 'user';
-          const hasVisibleContent = m.parts?.some(
-            (p: any) =>
-              (p.type === 'text' && p.text?.trim()) ||
-              p.type?.startsWith('tool-') ||
-              p.type === 'dynamic-tool'
-          );
-
-          if (!isUser && !hasVisibleContent && !isLoading) {
-            return null;
-          }
-
-          return (
-            <div
-              key={m.id}
-              className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-full animate-in fade-in duration-200`}
-            >
-              {/* Message Header (Label + Avatar) */}
-              <div className={`flex items-center gap-2 mb-1.5 px-1 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-                <div
-                  className={`h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${
-                    isUser
-                      ? 'bg-[#9bb3f7]/20 border border-[#9bb3f7]/40 text-[#4361ee] dark:text-[#9bb3f7]'
-                      : 'bg-[#1e2430] dark:bg-[#232a37] border border-slate-700/60 text-slate-100'
-                  }`}
-                >
-                  {isUser ? (
-                    <UserIcon className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChatBotIcon className="w-3.5 h-3.5 text-slate-100" />
+                  {isRecording && (
+                    <div className="flex items-center gap-2 text-xs text-rose-500 font-medium animate-pulse py-1">
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span>Listening... Speak your query clearly</span>
+                    </div>
                   )}
                 </div>
-                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  {isUser ? 'You' : 'JanSeva AI'}
-                </span>
+
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                  <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      aria-label="Attach document"
+                      title="Attach government document / ID proof"
+                      className="h-8 w-8 rounded-full flex items-center justify-center hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleVoice}
+                      aria-label={isRecording ? "Stop recording" : "Voice search"}
+                      title={isRecording ? "Stop Recording" : "Speak your query"}
+                      className={`h-8 w-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                        isRecording
+                          ? "bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 scale-110"
+                          : "hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || (!input.trim() && !attachedFile)}
+                    aria-label="Send message"
+                    className="h-9 w-9 rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-[#9bb3f7] dark:hover:bg-[#8ea8f7] text-white dark:text-slate-950 flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Quick Suggestion Chips */}
+            <div className="w-full max-w-2xl mt-5 space-y-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {currentChips.slice(0, 4).map((chip, idx) => {
+                  const IconComponent = chip.icon;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSendPrompt(chip.prompt)}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-[#151b27] hover:bg-slate-50 dark:hover:bg-[#1e2638] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-medium shadow-sm transition-all duration-150 active:scale-95 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700"
+                    >
+                      <IconComponent className={`w-3.5 h-3.5 ${chip.color}`} />
+                      <span>{chip.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Message Content Bubble */}
-              <div
-                className={`max-w-[90%] md:max-w-[80%] flex flex-col gap-2.5 ${
-                  isUser
-                    ? 'bg-[#9bb3f7] text-slate-950 font-medium rounded-2xl rounded-tr-sm px-5 py-3 text-sm shadow-md'
-                    : 'bg-white dark:bg-[#242b38] border border-slate-200/90 dark:border-slate-700/50 rounded-2xl rounded-tl-sm px-5 py-3.5 text-[13.5px] text-slate-800 dark:text-slate-200 leading-relaxed shadow-sm'
-                }`}
+              {currentChips.length > 4 && (
+                <div className="flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => handleSendPrompt(currentChips[4].prompt)}
+                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-[#151b27] hover:bg-slate-50 dark:hover:bg-[#1e2638] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-medium shadow-sm transition-all duration-150 active:scale-95 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700"
+                  >
+                    {(() => {
+                      const IconComponent = currentChips[4].icon;
+                      return <IconComponent className={`w-3.5 h-3.5 ${currentChips[4].color}`} />;
+                    })()}
+                    <span>{currentChips[4].label}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="w-full max-w-2xl mt-6 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                aria-label="Search filter"
+                className="h-8 w-8 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#151b27] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white flex items-center justify-center text-xs shadow-sm cursor-pointer"
               >
-                {/* Message Parts */}
-                {m.parts?.map((part: any, i: number) => {
-                  
-                  // 1. Render standard text parts
-                  if (part.type === 'text') {
-                    const textContent = part.text ?? '';
-                    if (!textContent) return null;
-                    return (
-                      <p key={i} className="whitespace-pre-wrap leading-relaxed">
-                        {textContent}
-                      </p>
-                    );
-                  }
-                  
-                  // 2. NORMALIZE TOOL DATA (Handles both Vercel AI SDK and manual fallbacks)
-                  const isStandardTool = part.type === 'tool-invocation';
-                  const toolName = isStandardTool ? part.toolInvocation?.toolName : part.type?.replace('tool-', '');
-                  const toolState = isStandardTool ? part.toolInvocation?.state : (part as any).state;
-                  const toolArgs = isStandardTool ? part.toolInvocation?.args : (part as any).args;
-                  const toolResult = isStandardTool ? part.toolInvocation?.result : (part as any).output;
-                  const toolData = toolResult || toolArgs;
+                <Search className="w-3.5 h-3.5" />
+              </button>
 
-                  // 3. Render Payment Gateway
-                  if (toolName === 'initiateChallanPayment') {
-                    if (toolState === 'result' || toolData || toolState === 'output-available') {
-                      return <PaymentWidget key={i} result={toolData} />;
-                    }
-                    return (
-                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                        <span>Initializing Secure Payment Gateway...</span>
-                      </div>
-                    );
+              {["Identity", "Finance", "Legal", "Education", "Health"].map((cat) => {
+                const isActive = selectedCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all shadow-sm cursor-pointer ${
+                      isActive
+                        ? "bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-md font-semibold"
+                        : "bg-white dark:bg-[#151b27] border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => setInfoModal("services")}
+                className="px-3.5 py-1.5 rounded-full border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#151b27] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-medium shadow-sm flex items-center gap-1 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700"
+              >
+                <span>See all</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          </section>
+        ) : (
+          /* ========================================================================= */
+          /* SCENARIO 2: UNIFIED INTERACTIVE CHAT WORKSPACE (Live Conversation)       */
+          /* ========================================================================= */
+          <div className="w-full max-w-3xl mx-auto flex flex-col flex-1 pb-4 animate-in fade-in duration-300">
+            
+            {/* Unified Chat Window Card */}
+            <div className="w-full bg-white dark:bg-[#121722] border border-slate-200/90 dark:border-slate-800/90 rounded-3xl shadow-xl overflow-hidden flex flex-col my-4 relative">
+              
+              {/* Chat Header Bar */}
+              <div className="px-5 py-3.5 bg-slate-50/90 dark:bg-[#161c2b] border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm">
+                    <ChatBotIcon className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-slate-900 dark:text-white">JanSeva AI Gateway</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Online
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Unified Citizen Public Services & Generative UI Assistant
+                    </p>
+                  </div>
+                </div>
+
+                {/* Reset / New Chat Action */}
+                <button
+                  type="button"
+                  onClick={() => setMessages([])}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1d2536] text-xs text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-900/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                  title="Clear conversation and start over"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="font-medium">New Chat</span>
+                </button>
+              </div>
+
+              {/* Message Stream Body */}
+              <div
+                ref={chatContainerRef}
+                onScroll={handleChatScroll}
+                className="p-4 sm:p-6 space-y-6 max-h-[620px] overflow-y-auto overscroll-contain scroll-smooth"
+              >
+                {messages.map((m: any) => {
+                  const isUser = m.role === "user";
+                  const hasVisibleContent = m.parts?.some(
+                    (p: any) =>
+                      (p.type === "text" && p.text?.trim()) ||
+                      p.type?.startsWith("tool-") ||
+                      p.type === "dynamic-tool"
+                  );
+
+                  if (!isUser && !hasVisibleContent && !isLoading) {
+                    return null;
                   }
 
-                  // 4. Render the Dynamic Form
-                  if (toolName === 'createApplicationForm') {
-                    if (toolState === 'result' || toolResult || toolState === 'output-available') {
-                      return (
-                        <div key={i} className="w-full mt-2">
-                          <DynamicForm result={toolResult} />
+                  return (
+                    <div
+                      key={m.id}
+                      className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-full animate-in fade-in duration-200`}
+                    >
+                      {/* Avatar & Label */}
+                      <div className={`flex items-center gap-2 mb-1.5 px-1 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+                        <div
+                          className={`h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${
+                            isUser
+                              ? "bg-blue-100 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
+                              : "bg-slate-900 dark:bg-[#1f2736] border border-slate-700 text-white"
+                          }`}
+                        >
+                          {isUser ? <UserIcon className="w-3.5 h-3.5" /> : <ChatBotIcon className="w-3.5 h-3.5 text-white" />}
                         </div>
-                      );
-                    }
-                    return (
-                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                        <span>Generating custom application form...</span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          {isUser ? "You" : "JanSeva AI"}
+                        </span>
                       </div>
-                    );
-                  }
 
-                  // 4. Render Passport Tracking Output
-                  if (toolName === 'trackPassport') {
-                    if (toolState === 'result' || toolResult || toolState === 'output-available') {
-                      
-                      // Normalize: toolResult might be a JSON string from the SDK
-                      let parsed = toolResult;
-                      if (typeof parsed === 'string') {
-                        try { parsed = JSON.parse(parsed); } catch { /* keep as-is */ }
-                      }
+                      {/* Message Bubble Container */}
+                      <div
+                        className={`max-w-[94%] sm:max-w-[88%] flex flex-col gap-2.5 ${
+                          isUser
+                            ? "bg-blue-600 dark:bg-[#9bb3f7] text-white dark:text-slate-950 font-medium rounded-2xl rounded-tr-sm px-4 sm:px-5 py-3 text-sm shadow-md"
+                            : "bg-slate-50 dark:bg-[#171e2c] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl rounded-tl-sm px-4 sm:px-5 py-4 text-sm text-slate-800 dark:text-slate-200 shadow-sm"
+                        }`}
+                      >
+                        {m.parts?.map((part: any, i: number) => {
+                          // 1. Text Rendering
+                          if (part.type === "text") {
+                            const textContent = part.text ?? "";
+                            if (!textContent) return null;
+                            if (isUser) {
+                              return (
+                                <p key={i} className="whitespace-pre-wrap leading-relaxed">
+                                  {textContent}
+                                </p>
+                              );
+                            }
+                            return <FormattedMessageText key={i} text={textContent} />;
+                          }
 
-                      // NEED_INPUT means the AI will ask the user via text — don't render anything
-                      if (!parsed || typeof parsed !== 'object' || parsed.status === 'NEED_INPUT') {
-                        return null;
-                      }
+                          // 2. Normalize Tool Data (Handles both AI SDK and custom proxies)
+                          const isStandardTool = part.type === "tool-invocation";
+                          const toolName = isStandardTool ? part.toolInvocation?.toolName : part.type?.replace("tool-", "");
+                          const toolState = isStandardTool ? part.toolInvocation?.state : (part as any).state;
+                          const toolArgs = isStandardTool ? part.toolInvocation?.args : (part as any).args;
+                          const toolResult = isStandardTool ? part.toolInvocation?.result : (part as any).output;
+                          const toolData = toolResult || toolArgs;
 
-                      // Handle Errors or Not Found cleanly
-                      if (parsed.status === 'ERROR' || parsed.status === 'NOT_FOUND') {
-                        return (
-                          <div key={i} className="w-full mt-2 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg text-rose-700 dark:text-rose-400 text-xs">
-                            <AlertCircle className="w-4 h-4 inline-block mr-1.5 mb-0.5" />
-                            {parsed.message}
-                          </div>
-                        );
-                      }
-                    
-                      // Render successful tracking details
-                      return (
-                        <div key={i} className="w-full mt-2 p-4 bg-emerald-50 dark:bg-[#1a2721] border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-emerald-900 dark:text-emerald-100 text-sm shadow-sm">
-                          <div className="flex items-center justify-between border-b border-emerald-200/50 dark:border-emerald-800/50 pb-2 mb-2">
-                            <span className="font-bold font-mono text-emerald-700 dark:text-emerald-400">
-                              {parsed.appId || 'Passport Application'}
-                            </span>
-                            <Badge className="bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100 hover:bg-emerald-200 text-[10px]">
-                              {parsed.status}
-                            </Badge>
-                          </div>
-                          
-                          <div className="space-y-1.5 text-xs text-emerald-800/80 dark:text-emerald-200/80">
-                            {parsed.serviceType && (
-                              <p><strong className="text-emerald-900 dark:text-emerald-100">Service:</strong> {parsed.serviceType}</p>
-                            )}
-                            {parsed.personalDetails && (
-                              <p><strong className="text-emerald-900 dark:text-emerald-100">Applicant:</strong> {parsed.personalDetails.firstName} {parsed.personalDetails.lastName}</p>
-                            )}
-                            {parsed.appointment?.pskLocation && (
-                              <p><strong className="text-emerald-900 dark:text-emerald-100">Location:</strong> {parsed.appointment.pskLocation}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                    
-                    return (
-                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                        <span>Connecting to Passport Seva servers...</span>
-                      </div>
-                    );
-                  }
-
-                  // 5. Render Knowledge Base Loader
-                  if (toolName === 'searchKnowledgeBase') {
-                    if (toolState === 'result' || toolResult || toolState === 'output-available') {
-                      return null; // Don't render JSON here, let the AI talk normally below it
-                    }
-                    return (
-                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                        <span>Searching official government rulebooks...</span>
-                      </div>
-                    );
-                  }
-                  // 5. Render e-Challan / Traffic Fines Output
-                  if (toolName === 'checkTrafficFines') {
-                    if (toolState === 'result' || toolResult || toolState === 'output-available') {
-                      // Normalize: toolResult might be a JSON string from the SDK
-                      let parsed = toolResult;
-                      if (typeof parsed === 'string') {
-                        try { parsed = JSON.parse(parsed); } catch { /* keep as-is */ }
-                      }
-
-                      // NEED_INPUT means the AI will ask the user via text — don't render anything
-                      if (!parsed || typeof parsed !== 'object' || parsed.status === 'NEED_INPUT') {
-                        return null;
-                      }
-
-                      if (parsed.status === 'ERROR') {
-                        return (
-                          <div key={i} className="w-full mt-2 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg text-rose-700 dark:text-rose-400 text-xs">
-                            <AlertCircle className="w-4 h-4 inline-block mr-1.5 mb-0.5" />
-                            {parsed.message || 'Unable to reach the Parivahan database at this time.'}
-                          </div>
-                        );
-                      }
-
-                      if (parsed.status === 'NOT_FOUND') {
-                        return (
-                          <div key={i} className="w-full mt-2 p-4 bg-emerald-50 dark:bg-[#1a2721] border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-emerald-900 dark:text-emerald-100 text-sm shadow-sm text-center">
-                            <CheckCircle2 className="w-7 h-7 mx-auto mb-2 text-emerald-500" />
-                            <p className="font-bold">No Pending Fines!</p>
-                            <p className="text-xs mt-1 text-emerald-700 dark:text-emerald-300">
-                              Vehicle <span className="font-mono font-semibold">{parsed.vehicleNo || parsed.vehicle?.vehicleNo}</span> has a clean record.
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      // Render the Challan Ticket
-                      const vehNo = parsed.vehicle?.vehicleNo || parsed.vehicleNo || 'Vehicle';
-                      const owner = parsed.vehicle?.ownerName || 'Registered Owner';
-                      const vehicleClass = parsed.vehicle?.vehicleClass;
-                      const fuelType = parsed.vehicle?.fuelType;
-                      const challanList = Array.isArray(parsed.challans) ? parsed.challans : [];
-
-                      return (
-                        <div key={i} className="w-full mt-2 space-y-3">
-                          <div className="p-3.5 bg-slate-100 dark:bg-[#1e2430] rounded-xl border border-slate-200 dark:border-slate-700/80 flex justify-between items-center shadow-sm">
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Vehicle</p>
-                              <p className="font-bold text-xs text-slate-800 dark:text-slate-200 mt-0.5">{owner}</p>
-                              {(vehicleClass || fuelType) && (
-                                <div className="flex gap-1 mt-1">
-                                  {vehicleClass && <span className="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.2 rounded">{vehicleClass}</span>}
-                                  {fuelType && <span className="text-[9px] bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 px-1.5 py-0.2 rounded">{fuelType}</span>}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Registration</p>
-                              <span className="font-mono font-bold text-xs bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-800/60 inline-block mt-0.5">
-                                {vehNo}
-                              </span>
-                            </div>
-                          </div>
-
-                          {challanList.map((challan: any, ci: number) => {
-                            const isPaid = challan.status === 'PAID';
-                            const isDisposed = challan.status === 'DISPOSED';
-                            const badgeColor = isPaid
-                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900'
-                              : isDisposed
-                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900';
-
-                            const barColor = isPaid ? 'bg-emerald-500' : isDisposed ? 'bg-slate-400' : 'bg-rose-500';
-
+                          // 3. Payment Gateway Generator
+                          if (toolName === "initiateChallanPayment") {
+                            if (toolState === "result" || toolData || toolState === "output-available") {
+                              return <PaymentWidget key={i} result={toolData} />;
+                            }
                             return (
-                              <div key={challan.challanId || `ch-${ci}`} className="p-4 bg-white dark:bg-[#1e2430] border border-slate-200 dark:border-slate-700/80 rounded-xl shadow-sm relative overflow-hidden">
-                                <div className={`absolute top-0 left-0 w-1.5 h-full ${barColor}`}></div>
-                                <div className="flex justify-between items-start mb-2 pl-1">
-                                  <div>
-                                    <p className={`font-bold text-sm ${isPaid ? 'text-emerald-600 dark:text-emerald-400' : isDisposed ? 'text-slate-600 dark:text-slate-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                      ₹{Number(challan.amount || 0).toLocaleString('en-IN')}
-                                    </p>
-                                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">
-                                      {challan.offense || 'Traffic Violation'}
-                                    </p>
-                                    {challan.location && (
-                                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                        📍 {challan.location}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Badge variant="outline" className={`text-[10px] ${badgeColor}`}>
-                                    {challan.status || 'PENDING'}
-                                  </Badge>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 mt-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 pl-1">
-                                  <p><strong>ID:</strong> <span className="font-mono">{challan.challanId}</span></p>
-                                  <p className="text-right"><strong>Date:</strong> {challan.date ? new Date(challan.date).toLocaleDateString() : 'N/A'}</p>
-                                </div>
+                              <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-[#9bb3f7]" />
+                                <span>Initializing Secure Payment Gateway...</span>
                               </div>
                             );
-                          })}
-                        </div>
-                      );
-                    }
-                    
-                    return (
-                      <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#9bb3f7]" />
-                        <span>Querying National Parivahan Database...</span>
+                          }
+
+                          // 4. Dynamic Generative Form
+                          if (toolName === "createApplicationForm") {
+                            if (toolState === "result" || toolResult || toolState === "output-available") {
+                              return (
+                                <div key={i} className="w-full mt-2">
+                                  <DynamicForm result={toolResult} />
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-[#9bb3f7]" />
+                                <span>Generating dynamic citizen application form...</span>
+                              </div>
+                            );
+                          }
+
+                          // 5. Passport Tracking Output
+                          if (toolName === "trackPassport") {
+                            if (toolState === "result" || toolResult || toolState === "output-available") {
+                              let parsed = toolResult;
+                              if (typeof parsed === "string") {
+                                try {
+                                  parsed = JSON.parse(parsed);
+                                } catch {}
+                              }
+
+                              if (!parsed || typeof parsed !== "object" || parsed.status === "NEED_INPUT") {
+                                return null;
+                              }
+
+                              if (parsed.status === "ERROR" || parsed.status === "NOT_FOUND") {
+                                return (
+                                  <div key={i} className="w-full mt-2 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl text-rose-700 dark:text-rose-400 text-xs">
+                                    <AlertCircle className="w-4 h-4 inline-block mr-1.5 mb-0.5" />
+                                    {parsed.message}
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div key={i} className="w-full mt-2 p-4 bg-emerald-50 dark:bg-[#122119] border border-emerald-200 dark:border-emerald-900/60 rounded-2xl text-emerald-900 dark:text-emerald-100 text-sm shadow-sm space-y-2">
+                                  <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-800/60 pb-2">
+                                    <span className="font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                                      {parsed.appId || "Passport Application"}
+                                    </span>
+                                    <Badge className="bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100 hover:bg-emerald-200 text-[10px]">
+                                      {parsed.status}
+                                    </Badge>
+                                  </div>
+                                  <div className="space-y-1 text-xs text-emerald-800/90 dark:text-emerald-200/90">
+                                    {parsed.serviceType && (
+                                      <p><strong>Service:</strong> {parsed.serviceType}</p>
+                                    )}
+                                    {parsed.personalDetails && (
+                                      <p><strong>Applicant:</strong> {parsed.personalDetails.firstName} {parsed.personalDetails.lastName}</p>
+                                    )}
+                                    {parsed.appointment?.pskLocation && (
+                                      <p><strong>Location:</strong> {parsed.appointment.pskLocation}</p>
+                                    )}
+                                    {parsed.appointment?.tokenNumber && (
+                                      <p><strong>Token:</strong> {parsed.appointment.tokenNumber}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-[#9bb3f7]" />
+                                <span>Connecting to Passport Seva portal...</span>
+                              </div>
+                            );
+                          }
+
+                          // 6. Knowledge Base Search
+                          if (toolName === "searchKnowledgeBase") {
+                            if (toolState === "result" || toolResult || toolState === "output-available") {
+                              return null;
+                            }
+                            return (
+                              <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-[#9bb3f7]" />
+                                <span>Searching official government rulebooks...</span>
+                              </div>
+                            );
+                          }
+
+                          // 7. e-Challan / Traffic Fines Output
+                          if (toolName === "checkTrafficFines") {
+                            if (toolState === "result" || toolResult || toolState === "output-available") {
+                              let parsed = toolResult;
+                              if (typeof parsed === "string") {
+                                try {
+                                  parsed = JSON.parse(parsed);
+                                } catch {}
+                              }
+
+                              if (!parsed || typeof parsed !== "object" || parsed.status === "NEED_INPUT") {
+                                return null;
+                              }
+
+                              if (parsed.status === "ERROR") {
+                                return (
+                                  <div key={i} className="w-full mt-2 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg text-rose-700 dark:text-rose-400 text-xs">
+                                    <AlertCircle className="w-4 h-4 inline-block mr-1.5 mb-0.5" />
+                                    {parsed.message || "Unable to reach the Parivahan database at this time."}
+                                  </div>
+                                );
+                              }
+
+                              if (parsed.status === "NOT_FOUND") {
+                                return (
+                                  <div key={i} className="w-full mt-2 p-4 bg-emerald-50 dark:bg-[#1a2721] border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-emerald-900 dark:text-emerald-100 text-sm shadow-sm text-center">
+                                    <CheckCircle2 className="w-7 h-7 mx-auto mb-2 text-emerald-500" />
+                                    <p className="font-bold">No Pending Fines!</p>
+                                    <p className="text-xs mt-1 text-emerald-700 dark:text-emerald-300">
+                                      Vehicle <span className="font-mono font-semibold">{parsed.vehicleNo || parsed.vehicle?.vehicleNo}</span> has a clean record.
+                                    </p>
+                                  </div>
+                                );
+                              }
+
+                              // Render the Vehicle & Challan Ticket Cards
+                              const vehNo = parsed.vehicle?.vehicleNo || parsed.vehicleNo || "Vehicle";
+                              const owner = parsed.vehicle?.ownerName || "Registered Owner";
+                              const vehicleClass = parsed.vehicle?.vehicleClass;
+                              const fuelType = parsed.vehicle?.fuelType;
+                              const challanList = Array.isArray(parsed.challans) ? parsed.challans : [];
+
+                              return (
+                                <div key={i} className="w-full mt-2 space-y-3">
+                                  <div className="p-3.5 bg-slate-100 dark:bg-[#1e2430] rounded-xl border border-slate-200 dark:border-slate-700/80 flex justify-between items-center shadow-sm">
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Vehicle</p>
+                                      <p className="font-bold text-xs text-slate-800 dark:text-slate-200 mt-0.5">{owner}</p>
+                                      {(vehicleClass || fuelType) && (
+                                        <div className="flex gap-1 mt-1">
+                                          {vehicleClass && <span className="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">{vehicleClass}</span>}
+                                          {fuelType && <span className="text-[9px] bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 px-1.5 py-0.5 rounded">{fuelType}</span>}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Registration</p>
+                                      <span className="font-mono font-bold text-xs bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-800/60 inline-block mt-0.5">
+                                        {vehNo}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {challanList.map((challan: any, ci: number) => {
+                                    const isPaid = challan.status === "PAID";
+                                    const isDisposed = challan.status === "DISPOSED";
+                                    const badgeColor = isPaid
+                                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900"
+                                      : isDisposed
+                                      ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700"
+                                      : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900";
+
+                                    const barColor = isPaid ? "bg-emerald-500" : isDisposed ? "bg-slate-400" : "bg-rose-500";
+
+                                    return (
+                                      <div key={challan.challanId || `ch-${ci}`} className="p-4 bg-white dark:bg-[#1e2430] border border-slate-200 dark:border-slate-700/80 rounded-xl shadow-sm relative overflow-hidden">
+                                        <div className={`absolute top-0 left-0 w-1.5 h-full ${barColor}`}></div>
+                                        <div className="flex justify-between items-start mb-2 pl-1">
+                                          <div>
+                                            <p className={`font-bold text-sm ${isPaid ? "text-emerald-600 dark:text-emerald-400" : isDisposed ? "text-slate-600 dark:text-slate-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                              ₹{Number(challan.amount || 0).toLocaleString("en-IN")}
+                                            </p>
+                                            <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">
+                                              {challan.offense || "Traffic Violation"}
+                                            </p>
+                                            {challan.location && (
+                                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                📍 {challan.location}
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            {!isPaid && !isDisposed && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSendPrompt(`Pay challan ${challan.challanId}`)}
+                                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer"
+                                              >
+                                                Pay ₹{Number(challan.amount || 0).toLocaleString("en-IN")} Online
+                                              </button>
+                                            )}
+                                            <Badge variant="outline" className={`text-[10px] ${badgeColor}`}>
+                                              {challan.status || "PENDING"}
+                                            </Badge>
+                                          </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 pl-1">
+                                          <p><strong>ID:</strong> <span className="font-mono">{challan.challanId}</span></p>
+                                          <p className="text-right"><strong>Date:</strong> {challan.date ? new Date(challan.date).toLocaleDateString() : "N/A"}</p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={i} className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 mt-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-[#9bb3f7]" />
+                                <span>Querying National Parivahan Database...</span>
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })}
                       </div>
-                    );
-                  }
-
-
-                  return null;
+                    </div>
+                  );
                 })}
 
-                {/* Assistant Loading Dots */}
-                {!isUser && isLoading && !hasVisibleContent && (
-                  <div className="flex gap-1.5 items-center h-4 py-2">
-                    <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce" />
+                {/* Thinking Skeleton Indicator */}
+                {isLoading && (
+                  <div className="flex items-center gap-2.5 text-slate-500 dark:text-slate-400 text-xs py-2 px-2 animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                    <span>Consulting National Public Services Knowledge Base...</span>
+                  </div>
+                )}
+
+                {/* Global Error Notice */}
+                {error && (
+                  <div className="flex items-center gap-2.5 p-3 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl">
+                    <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                    <span>Service gateway temporary timeout. Please retry your inquiry.</span>
                   </div>
                 )}
               </div>
-            </div>
-          );
-        })}
 
-        {/* Thinking Indicator — shown while waiting for AI response */}
-        {status === 'submitted' && (
-          <div className="flex flex-col items-start max-w-full animate-in fade-in duration-300">
-            <div className="flex items-center gap-2 mb-1.5 px-1">
-              <div className="h-6 w-6 rounded-full bg-[#1e2430] dark:bg-[#232a37] border border-slate-700/60 flex items-center justify-center text-slate-100 shadow-sm flex-shrink-0">
-                <ChatBotIcon className="w-3.5 h-3.5 text-slate-100" />
+              {/* Floating Scroll to Bottom Jump Button */}
+              {showScrollBottomBtn && (
+                <div className="absolute bottom-24 right-6 flex justify-center pointer-events-none z-20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      isAutoScrollEnabledRef.current = true;
+                      setShowScrollBottomBtn(false);
+                      scrollToBottom(true);
+                    }}
+                    className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 text-white dark:bg-blue-600 dark:hover:bg-blue-500 shadow-xl text-xs font-semibold backdrop-blur-sm transition-all duration-200 animate-in fade-in zoom-in-95 cursor-pointer hover:scale-105 active:scale-95 border border-slate-700/50"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                    <span>Scroll to bottom</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Integrated Bottom Input Bar (Inside Chat Window) */}
+              <div className="p-3 sm:p-4 bg-slate-50/70 dark:bg-[#161c2b] border-t border-slate-200/80 dark:border-slate-800/80">
+                
+                {/* Quick Follow-up Chips Carousel */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-1 text-xs no-scrollbar">
+                  {[
+                    "Apply for Passport",
+                    "Check Traffic Fines",
+                    "Aadhaar Update",
+                    "Instant e-PAN",
+                    "Track Application",
+                    "Income Tax Filing",
+                  ].map((quickPrompt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSendPrompt(quickPrompt)}
+                      className="px-2.5 py-1 rounded-full bg-white dark:bg-[#1e2638] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] whitespace-nowrap transition-colors cursor-pointer active:scale-95 shadow-sm"
+                    >
+                      {quickPrompt}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input Controls */}
+                <form
+                  onSubmit={handleSubmit}
+                  className="bg-white dark:bg-[#121722] border border-slate-200 dark:border-slate-700/90 rounded-2xl p-2.5 sm:p-3 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all"
+                >
+                  <div className="relative">
+                    <textarea
+                      ref={textareaRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      rows={2}
+                      disabled={isLoading}
+                      placeholder="Ask follow-up question, request official documents, or fill forms..."
+                      className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none leading-relaxed py-1"
+                    />
+
+                    {attachedFile && (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-300 mb-1">
+                        <Paperclip className="w-3 h-3 text-blue-500" />
+                        <span className="truncate max-w-[180px]">{attachedFile}</span>
+                        <button
+                          type="button"
+                          onClick={() => setAttachedFile(null)}
+                          className="text-slate-400 hover:text-rose-500"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {isRecording && (
+                      <div className="flex items-center gap-2 text-xs text-rose-500 font-medium animate-pulse py-0.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        <span>Listening... Speak your query clearly</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60 mt-1">
+                    <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                        accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        aria-label="Attach document"
+                        title="Attach government document / ID proof"
+                        className="h-7 w-7 rounded-full flex items-center justify-center hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <Paperclip className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleToggleVoice}
+                        aria-label={isRecording ? "Stop recording" : "Voice search"}
+                        title={isRecording ? "Stop Recording" : "Speak your query"}
+                        className={`h-7 w-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                          isRecording
+                            ? "bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 scale-110"
+                            : "hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading || (!input.trim() && !attachedFile)}
+                      aria-label="Send message"
+                      className="h-8 w-8 rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-[#9bb3f7] dark:hover:bg-[#8ea8f7] text-white dark:text-slate-950 flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                JanSeva AI
-              </span>
-            </div>
-            <div className="bg-white dark:bg-[#242b38] border border-slate-200/90 dark:border-slate-700/50 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm">
-              <div className="flex gap-1.5 items-center">
-                <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-2 h-2 bg-[#9bb3f7] rounded-full animate-bounce" />
-              </div>
+
             </div>
           </div>
         )}
 
-        {/* Global error notification */}
-        {error && (
-          <div className="flex items-center gap-2.5 p-3 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl max-w-md mx-auto">
-            <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
-            <span>Connection issue with Public Gateway. Please retry.</span>
-          </div>
-        )}
+        {/* FEATURED SERVICES SECTION (Always accessible below) */}
+        <FeaturedServices onSelectService={handleSendPrompt} />
 
-        <div ref={bottomRef} />
       </main>
 
-      {/* Bottom Floating Input Capsule */}
-      <footer className="px-4 md:px-6 pb-4 pt-2 bg-[#f8fafc] dark:bg-[#181e28] flex-shrink-0">
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white dark:bg-[#212836] border border-slate-200 dark:border-slate-700/80 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg transition-all focus-within:border-slate-400 dark:focus-within:border-slate-500 focus-within:ring-2 focus-within:ring-[#9bb3f7]/20"
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your query here..."
-            disabled={isLoading}
-            className="flex-1 bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none px-2 font-normal"
-          />
+      {/* FOOTER */}
+      <Footer />
 
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            aria-label="Send message"
-            className="h-8 w-8 rounded-full bg-[#9bb3f7] hover:bg-[#8ea8f7] text-slate-950 flex items-center justify-center transition-all flex-shrink-0 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-            ) : (
-              <Send className="w-3.5 h-3.5 text-slate-950 fill-current translate-x-px" />
-            )}
-          </button>
-        </form>
+      {/* Info Dialogs for How it works & Services */}
+      <InfoDialogs
+        type={infoModal}
+        onClose={() => setInfoModal(null)}
+        onSelectPrompt={handleSendPrompt}
+      />
 
-        <p className="text-[11px] text-center text-slate-400 dark:text-slate-500 mt-2 font-normal">
-          JanSeva AI can make mistakes. Verify important information.
-        </p>
-      </footer>
-
-      {/* Tester Helper for quick mock test data */}
+      {/* Tester Helper for Hackathon Evaluation */}
       <TesterHelperDialog onSelectPrompt={handleSendPrompt} />
+
     </div>
   );
 }
