@@ -22,6 +22,4 @@ const KnowledgeDocumentSchema = new mongoose.Schema({
     }
 });
 
-// We will add the ServiceRegistry schema here later for the forms
-
 export const KnowledgeDocument = mongoose.models.KnowledgeDocument || mongoose.model('KnowledgeDocument', KnowledgeDocumentSchema);

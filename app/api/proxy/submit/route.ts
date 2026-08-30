@@ -7,8 +7,6 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
-        console.log('[proxy/submit] Forwarding to Site 3:', JSON.stringify(body).substring(0, 300));
-
         const res = await fetch(`${SITE_3_URL}/api/appointments/draft`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -16,7 +14,6 @@ export async function POST(req: Request) {
         });
 
         const data = await res.json();
-        console.log('[proxy/submit] Site 3 response:', res.status, JSON.stringify(data).substring(0, 300));
 
         if (!res.ok) {
             return NextResponse.json(

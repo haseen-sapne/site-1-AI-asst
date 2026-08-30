@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Footer } from "@/components/widgets/Footer";
 import { InfoDialogs } from "@/components/widgets/InfoDialogs";
 import { DynamicForm } from "@/components/widgets/DynamicForm";
 import { PaymentWidget } from "@/components/widgets/PaymentWidget";
@@ -11,6 +10,15 @@ import { TesterHelperDialog } from "@/components/widgets/TesterHelperDialog";
 import { DarkModeToggle } from "@/components/widgets/DarkModeToggle";
 import { ChatBotIcon } from "@/components/widgets/ChatBotIcon";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   ArrowUp,
   FileText,
@@ -68,7 +76,7 @@ function FormattedMessageText({ text }: { text: string }) {
   const lines = text.split("\n");
 
   return (
-    <div className="space-y-2 text-slate-800 dark:text-slate-200 text-sm leading-relaxed">
+    <div className="space-y-2 text-slate-800 dark:text-slate-200 text-[15px] leading-relaxed">
       {lines.map((line, idx) => {
         const trimmed = line.trim();
         if (!trimmed) {
@@ -227,7 +235,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col relative bg-white dark:bg-[#0b0e14] text-slate-900 dark:text-slate-100 selection:bg-blue-500 selection:text-white transition-colors duration-250">
+    <div className={`h-[100dvh] flex flex-col relative bg-white dark:bg-[#0b0e14] text-slate-900 dark:text-slate-100 selection:bg-blue-500 selection:text-white transition-colors duration-250 ${hasMessages ? "overflow-hidden" : "overflow-y-auto"}`}>
       
       {/* Ambient Glow */}
       <div className="absolute top-0 inset-x-0 h-[640px] hero-ambient-glow pointer-events-none z-0" />
@@ -235,7 +243,7 @@ export default function HomePage() {
       {/* ========================================================================= */}
       {/* INLINE HEADER (Merged Navbar)                                            */}
       {/* ========================================================================= */}
-      <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-white/80 dark:bg-[#0b0e14]/80 border-b border-slate-200/60 dark:border-slate-800/60 transition-colors duration-250">
+      <header className="shrink-0 sticky top-0 z-50 w-full backdrop-blur-md bg-white/80 dark:bg-[#0b0e14]/80 border-b border-slate-200/60 dark:border-slate-800/60 transition-colors duration-250">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
           {/* Brand Logo & Title */}
@@ -285,13 +293,13 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 z-10 flex flex-col items-center px-3 sm:px-6 w-full">
+      <main className={`flex-1 min-h-0 z-10 flex flex-col items-center px-3 sm:px-6 w-full ${hasMessages ? "overflow-hidden" : ""}`}>
         
         {/* ========================================================================= */}
         {/* SCENARIO 1: HERO VIEW (When no conversation is active)                  */}
         {/* ========================================================================= */}
         {!hasMessages ? (
-          <section className="w-full max-w-4xl mx-auto pt-12 sm:pt-20 pb-12 flex flex-col items-center text-center animate-in fade-in duration-300">
+          <section className="w-full max-w-4xl mx-auto pt-10 sm:pt-16 pb-12 flex flex-col items-center text-center animate-in fade-in duration-300">
             
             {/* Title */}
             <h1 className="text-3xl sm:text-5xl lg:text-[46px] font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.15] mb-8 animate-in fade-in duration-300">
@@ -299,7 +307,7 @@ export default function HomePage() {
             </h1>
 
             {/* Central Search & AI Chat Box */}
-            <div className="w-full max-w-2xl bg-white dark:bg-[#141926] border border-slate-200/90 dark:border-slate-800 rounded-[28px] sm:rounded-[32px] p-4 sm:p-5 shadow-[0_12px_45px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_16px_50px_-15px_rgba(0,0,0,0.5)] transition-all duration-200 focus-within:ring-2 focus-within:ring-blue-500/20 dark:focus-within:ring-indigo-500/30 focus-within:border-blue-400 dark:focus-within:border-slate-700 text-left">
+            <div className="w-full max-w-[762px] bg-white dark:bg-[#141926] border border-slate-200/90 dark:border-slate-800 rounded-[28px] sm:rounded-[32px] p-4 sm:p-5 shadow-[0_12px_45px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_16px_50px_-15px_rgba(0,0,0,0.5)] transition-all duration-200 focus-within:ring-2 focus-within:ring-blue-500/20 dark:focus-within:ring-indigo-500/30 focus-within:border-blue-400 dark:focus-within:border-slate-700 text-left">
               
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div className="relative">
@@ -311,7 +319,7 @@ export default function HomePage() {
                     rows={2}
                     disabled={isLoading}
                     placeholder="Ask about passport applications, traffic fines, or track records..."
-                    className="w-full bg-transparent text-sm sm:text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none leading-relaxed py-1"
+                    className="w-full bg-transparent text-[15px] sm:text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none leading-relaxed py-1"
                   />
                 </div>
 
@@ -337,7 +345,7 @@ export default function HomePage() {
             </div>
 
             {/* Focused Quick Suggestion Chips */}
-            <div className="w-full max-w-2xl mt-6 flex flex-wrap items-center justify-center gap-2.5">
+            <div className="w-full max-w-[772px] mt-6 flex flex-wrap items-center justify-center gap-2.5">
               {quickChips.map((chip, idx) => {
                 const IconComponent = chip.icon;
                 return (
@@ -355,7 +363,7 @@ export default function HomePage() {
             </div>
 
             {/* Direct Microservice Portals (Site 2 & Site 3) */}
-            <div className="w-full max-w-2xl mt-4 flex flex-wrap items-center justify-center gap-3 pt-1">
+            <div className="w-full max-w-[762px] mt-4 flex flex-wrap items-center justify-center gap-3 pt-1">
               <a
                 href="https://site-2-passportseva.vercel.app"
                 target="_blank"
@@ -385,13 +393,13 @@ export default function HomePage() {
           /* ========================================================================= */
           /* SCENARIO 2: LIVE CONVERSATION WORKSPACE                                   */
           /* ========================================================================= */
-          <div className="w-full max-w-3xl mx-auto flex flex-col flex-1 pb-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-[848px] mx-auto flex flex-col flex-1 min-h-0 py-2 sm:py-3 animate-in fade-in duration-300">
             
             {/* Unified Chat Window Card */}
-            <div className="w-full bg-white dark:bg-[#121722] border border-slate-200/90 dark:border-slate-800/90 rounded-3xl shadow-xl overflow-hidden flex flex-col my-4 relative">
+            <div className="w-full h-full min-h-0 bg-white dark:bg-[#121722] border border-slate-200/90 dark:border-slate-800/90 rounded-3xl shadow-xl overflow-hidden flex flex-col relative">
               
               {/* Chat Header Bar */}
-              <div className="px-5 py-3.5 bg-slate-50/90 dark:bg-[#161c2b] border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between">
+              <div className="shrink-0 px-5 py-3 bg-slate-50/90 dark:bg-[#161c2b] border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm">
                     <ChatBotIcon className="w-4 h-4 text-white" />
@@ -426,7 +434,7 @@ export default function HomePage() {
               <div
                 ref={chatContainerRef}
                 onScroll={handleChatScroll}
-                className="p-4 sm:p-6 space-y-6 max-h-[620px] overflow-y-auto overscroll-contain scroll-smooth"
+                className="flex-1 min-h-0 p-4 sm:p-6 space-y-6 overflow-y-auto overscroll-contain scroll-smooth"
               >
                 {messages.map((m: any) => {
                   const isUser = m.role === "user";
@@ -466,8 +474,8 @@ export default function HomePage() {
                       <div
                         className={`max-w-[94%] sm:max-w-[88%] flex flex-col gap-2.5 ${
                           isUser
-                            ? "bg-blue-600 dark:bg-[#9bb3f7] text-white dark:text-slate-950 font-medium rounded-2xl rounded-tr-sm px-4 sm:px-5 py-3 text-sm shadow-md"
-                            : "bg-slate-50 dark:bg-[#171e2c] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl rounded-tl-sm px-4 sm:px-5 py-4 text-sm text-slate-800 dark:text-slate-200 shadow-sm"
+                            ? "bg-blue-600 dark:bg-[#9bb3f7] text-white dark:text-slate-950 font-medium rounded-2xl rounded-tr-sm px-4 sm:px-5 py-3 text-[15px] shadow-md"
+                            : "bg-slate-50 dark:bg-[#171e2c] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl rounded-tl-sm px-4 sm:px-5 py-4 text-[15px] text-slate-800 dark:text-slate-200 shadow-sm"
                         }`}
                       >
                         {m.parts?.map((part: any, i: number) => {
@@ -506,12 +514,33 @@ export default function HomePage() {
                             );
                           }
 
-                          // 4. Dynamic Generative Form
+                          // 4. Dynamic Generative Form (Modal Dialog Overlay)
                           if (toolName === "createApplicationForm") {
                             if (toolState === "result" || toolResult || toolState === "output-available") {
                               return (
                                 <div key={i} className="w-full mt-2">
-                                  <DynamicForm result={toolResult} />
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button className="w-full bg-[#9bb3f7] hover:bg-[#8ea8f7] text-slate-950 font-bold py-2.5 rounded-xl shadow-sm cursor-pointer transition flex items-center justify-center gap-2 text-sm">
+                                        <span>📝 Fill Passport Application Form</span>
+                                      </Button>
+                                    </DialogTrigger>
+
+                                    <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto bg-slate-50 dark:bg-[#0b101a] border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl p-6">
+                                      <DialogHeader>
+                                        <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                                          Passport Application
+                                        </DialogTitle>
+                                        <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+                                          Please verify and complete your application details below.
+                                        </DialogDescription>
+                                      </DialogHeader>
+
+                                      <div className="mt-3">
+                                        <DynamicForm result={toolResult} />
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
                                 </div>
                               );
                             }
@@ -746,7 +775,7 @@ export default function HomePage() {
 
               {/* Floating Scroll to Bottom Jump Button */}
               {showScrollBottomBtn && (
-                <div className="absolute bottom-24 right-6 flex justify-center pointer-events-none z-20">
+                <div className="absolute bottom-28 sm:bottom-32 right-6 flex justify-center pointer-events-none z-20">
                   <button
                     type="button"
                     onClick={() => {
@@ -763,7 +792,7 @@ export default function HomePage() {
               )}
 
               {/* Integrated Bottom Input Bar */}
-              <div className="p-3 sm:p-4 bg-slate-50/70 dark:bg-[#161c2b] border-t border-slate-200/80 dark:border-slate-800/80">
+              <div className="shrink-0 p-3 sm:p-4 bg-slate-50/70 dark:bg-[#161c2b] border-t border-slate-200/80 dark:border-slate-800/80">
                 
                 {/* Quick Follow-up Chips Carousel */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-1 text-xs no-scrollbar">
@@ -799,7 +828,7 @@ export default function HomePage() {
                       rows={2}
                       disabled={isLoading}
                       placeholder="Ask follow-up question, fill forms, or track applications..."
-                      className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none leading-relaxed py-1"
+                      className="w-full bg-transparent text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none leading-relaxed py-1"
                     />
                   </div>
 
@@ -830,9 +859,7 @@ export default function HomePage() {
 
       </main>
 
-      {/* FOOTER */}
-      <Footer />
-
+     
       {/* Info Dialogs for How it works & Services */}
       <InfoDialogs
         type={infoModal}
