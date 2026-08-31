@@ -98,8 +98,6 @@ const trackPassportTool = tool({
         draftId: z.string().optional().describe('Alias for applicationId. The passport application reference ID.'),
     }),
     execute: async (args: any) => {
-        console.log('[trackPassport] Called with args:', JSON.stringify(args));
-
         try {
             // Accept both field names — Gemini uses applicationId, legacy code uses draftId
             const draftId = args?.applicationId || args?.draftId;
@@ -117,7 +115,6 @@ const trackPassportTool = tool({
             const cleanId = match ? match[0].toUpperCase() : String(draftId).trim();
 
             const fetchUrl = `${SITE_3_URL}/api/appointments/${cleanId}`;
-            console.log('[trackPassport] Fetching:', fetchUrl);
 
             // Add a 15-second timeout to prevent hanging
             const controller = new AbortController();
@@ -130,10 +127,7 @@ const trackPassportTool = tool({
             });
             clearTimeout(timeout);
 
-            console.log('[trackPassport] Response status:', res.status);
-
             const json = await res.json();
-            console.log('[trackPassport] Response body:', JSON.stringify(json).substring(0, 500));
 
             if (!res.ok || !json.success) {
                 return { status: 'NOT_FOUND', appId: cleanId, message: `No application found for ID: ${cleanId}` };
@@ -170,7 +164,6 @@ const checkTrafficFinesTool = tool({
         input: z.string().optional().describe('Input string containing vehicle registration number'),
     }),
     execute: async (args: any) => {
-        console.log('[checkTrafficFines] Called with args:', JSON.stringify(args));
         try {
             // Fallback across potential LLM keys
             const rawInput = args?.vehicleNo || args?.vehicleNumber || args?.registrationNo || args?.regNo || args?.query || args?.input || '';
@@ -187,7 +180,6 @@ const checkTrafficFinesTool = tool({
             }
 
             const fetchUrl = `${SITE_2_URL}/api/challans/${cleanVehNo}`;
-            console.log('[checkTrafficFines] Fetching:', fetchUrl);
 
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 15000);
@@ -200,7 +192,6 @@ const checkTrafficFinesTool = tool({
             clearTimeout(timeout);
 
             const json = await res.json();
-            console.log('[checkTrafficFines] Response:', res.status, JSON.stringify(json).substring(0, 500));
 
             // Check if challans exist or if vehicle was found with clean record
             const isFound = res.ok && (json.status === 'FOUND' || json.success === true) && (
@@ -304,11 +295,8 @@ const createApplicationFormTool = tool({
         prefilledData: z.any().describe('Key-value pairs of details already known (e.g. {"firstName": "Rahul"})'),
     }),
     execute: async (args: any) => {
-        console.log('[createApplicationForm] Called with args:', JSON.stringify(args).substring(0, 800));
-
         let rawFields = args.fields || [];
         if (rawFields.length === 0) {
-            console.log('[createApplicationForm] Empty fields array — injecting default passport fields');
             rawFields = PASSPORT_DEFAULT_FIELDS;
         }
 
@@ -375,7 +363,6 @@ const initiateChallanPaymentTool = tool({
         offense: z.any().optional().describe('The traffic offense description'),
     }),
     execute: async (args: any) => {
-        console.log('[initiateChallanPayment] Called with args:', JSON.stringify(args));
         const rawId = args?.challanId || args?.challan_id || args?.id || '';
         const rawAmount = args?.amount || args?.totalAmount || args?.fine || 0;
         const cleanAmount = typeof rawAmount === 'number' ? rawAmount : Number(String(rawAmount).replace(/[^0-9.]/g, '')) || 0;
@@ -478,7 +465,6 @@ export async function POST(req: Request) {
             offense: z.any().optional().describe('The traffic offense description'),
         }),
         execute: async (args: any) => {
-            console.log('[initiateChallanPayment] Called with args:', JSON.stringify(args), 'context:', { contextualChallanId, contextualAmount, contextualOffense });
             const rawId = args?.challanId || args?.challan_id || args?.id || contextualChallanId;
             const rawAmount = args?.amount || args?.totalAmount || args?.fine || contextualAmount;
             const cleanAmount = typeof rawAmount === 'number' ? rawAmount : Number(String(rawAmount).replace(/[^0-9.]/g, '')) || contextualAmount;

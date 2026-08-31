@@ -51,14 +51,14 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
       {/* Modern Tester Navigation Callout */}
       {!doodleDismissed && !open && (
         <div
-          className="fixed bottom-[72px] right-6 z-40 flex flex-col items-end pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-300 group"
+          className="fixed  bottom-[102px] right-9 z-40 flex flex-col items-end pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-300 group"
           role="region"
           aria-label="Tester Navigation Hint"
         >
-          {/* Sleek Modern Badge Card */}
+          {/* Sleek Modern Badge Card (+50px bigger) */}
           <div
             onClick={() => setOpen(true)}
-            className="relative flex items-center gap-2.5 bg-white/95 dark:bg-[#111724]/95 border border-slate-200/90 dark:border-blue-500/30 text-slate-900 dark:text-slate-100 px-3.5 py-2 rounded-2xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.12)] dark:shadow-[0_10px_35px_-5px_rgba(0,0,0,0.5)] backdrop-blur-xl hover:border-blue-500/50 dark:hover:border-blue-400/60 transition-all duration-200 cursor-pointer"
+            className="relative min-w-[280px] sm:min-w-[305px] flex items-center gap-3.5 bg-white/95 dark:bg-[#111724]/95 border border-slate-200/90 dark:border-blue-500/30 text-slate-900 dark:text-slate-100 px-4 sm:px-5 py-3 rounded-2xl shadow-[0_12px_35px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_12px_40px_-5px_rgba(0,0,0,0.6)] backdrop-blur-xl hover:border-blue-500/50 dark:hover:border-blue-400/60 transition-all duration-200 cursor-pointer"
           >
             {/* Dismiss Button */}
             <button
@@ -75,17 +75,17 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
             </button>
 
             {/* Glowing Status Dot */}
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600 dark:bg-blue-400" />
             </span>
 
             {/* Clean Modern Text */}
             <div className="flex flex-col text-left">
-              <span className="text-xs font-semibold text-slate-900 dark:text-white tracking-tight">
+              <span className="text-lg sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                 If you are a tester
               </span>
-              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400">
                 Click here for mock profiles & guides
               </span>
             </div>
@@ -94,11 +94,11 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
           {/* Minimalist Curved Pointer Arrow */}
           <div
             onClick={() => setOpen(true)}
-            className="cursor-pointer pr-7 -mt-0.5 transform transition-transform group-hover:translate-y-1"
+            className="cursor-pointer pr-10 -mt-0.5 transform transition-transform group-hover:translate-y-1"
           >
             <svg
-              width="36"
-              height="32"
+              width="44"
+              height="36"
               viewBox="0 0 40 36"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -106,12 +106,12 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
             >
               <path
                 d="M 12 4 C 24 4, 26 12, 26 24"
-                strokeWidth="2.2"
+                strokeWidth="2.4"
                 strokeLinecap="round"
               />
               <path
                 d="M 20 18 L 26 25 L 32 18"
-                strokeWidth="2.2"
+                strokeWidth="2.4"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -120,21 +120,21 @@ export function TesterHelperDialog({ onSelectPrompt }: TesterHelperDialogProps) 
         </div>
       )}
 
-      {/* Floating Action Button (FAB) positioned bottom-right */}
+      {/* Floating Action Button (FAB) positioned bottom-right (moved 20px above, +50px bigger) */}
       <button
         id="tester-helper-fab"
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-slate-900 dark:bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xl hover:bg-slate-800 dark:hover:bg-blue-500 hover:scale-105 active:scale-95 transition-all border border-slate-700 dark:border-blue-400/50 cursor-pointer group"
+        className="fixed bottom-[44px] right-6 z-40 flex items-center gap-2.5 rounded-full bg-slate-900 dark:bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-2xl hover:bg-slate-800 dark:hover:bg-blue-500 hover:scale-105 active:scale-95 transition-all border border-slate-700 dark:border-blue-400/50 cursor-pointer group"
         title="Hackathon Tester Instructions"
       >
-        <HelpCircle className="h-4 w-4 text-emerald-400 dark:text-emerald-300 group-hover:rotate-12 transition-transform" />
-        <span>Tester Helper</span>
+        <HelpCircle className="h-5 w-5 text-emerald-400 dark:text-emerald-300 group-hover:rotate-12 transition-transform shrink-0" />
+        <span className="tracking-wide">Tester Helper</span>
       </button>
 
       {/* Tester Instructions Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl p-6 bg-white dark:bg-[#141923] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl p-6  bg-white dark:bg-[#141923] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400">
