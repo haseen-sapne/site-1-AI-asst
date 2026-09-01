@@ -118,7 +118,7 @@ function FormattedMessageText({ text }: { text: string }) {
 
 export default function HomePage() {
   const [input, setInput] = useState("");
-  const [infoModal, setInfoModal] = useState<"howItWorks" | "services" | null>(null);
+  const [infoModal, setInfoModal] = useState<"howItWorks" | "services" | "aboutUs" | null>(null);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isAutoScrollEnabledRef = useRef(true);
@@ -283,6 +283,13 @@ export default function HomePage() {
                 className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
                 Services
+              </button>
+              <button
+                type="button"
+                onClick={() => setInfoModal("aboutUs")}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                About Us
               </button>
             </nav>
 
