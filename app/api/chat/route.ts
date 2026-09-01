@@ -22,6 +22,22 @@ const google = createGoogleGenerativeAI({
 
 export const maxDuration = 30;
 
+// Active working model index cached across requests and dev hot-reloads via globalThis
+const COOLDOWN_RESET_MS = 60 * 60 * 1000; // 1 hour before re-probing primary model
+const globalSession = globalThis as unknown as {
+    _jansevaActiveModelIndex?: number;
+    _jansevaLastExhaustionTimestamp?: number;
+};
+
+function getSessionActiveModelIndex(): number {
+    return globalSession._jansevaActiveModelIndex ?? 0;
+}
+
+function setSessionActiveModelIndex(index: number): void {
+    globalSession._jansevaActiveModelIndex = index;
+    globalSession._jansevaLastExhaustionTimestamp = Date.now();
+}
+
 // 1. RAG Knowledge Tool: Vector Search over official rules
 const searchKnowledgeBaseTool = tool({
     description: 'Search official rules, fees, timelines, and document requirements for public services.',
@@ -449,42 +465,95 @@ export async function POST(req: Request) {
             execute: async ({ writer }) => {
                 let succeeded = false;
 
-                if (process.env.GEMINI_API_KEY) {
-                    const fallbackModels = [
-                        google('gemini-3.7-flash'),   // Primary model (Smartest)
-                        google('gemini-3.6-flash'),
-                        google('gemini-3.5-flash-lite'), // Fallback 1 (High quota)
-                        google('gemini-3.1-flash-lite'), // Fallback 2 
+                if (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+                    const fallbackModelDefs = [
+                        { name: 'gemini-3.7-flash', model: google('gemini-3.7-flash') },
+                        { name: 'gemini-3.6-flash', model: google('gemini-3.6-flash') },
+                        { name: 'gemini-3.5-flash-lite', model: google('gemini-3.5-flash-lite') },
+                        { name: 'gemini-3.1-flash-lite', model: google('gemini-3.1-flash-lite') },
                     ];
 
-                    for (const model of fallbackModels) {
+                    // Cooldown refresh: after 1 hour, re-probe primary model in case quota refreshed
+                    const activeIndex = getSessionActiveModelIndex();
+                    const lastCheck = globalSession._jansevaLastExhaustionTimestamp ?? 0;
+                    if (activeIndex > 0 && Date.now() - lastCheck > COOLDOWN_RESET_MS) {
+                        console.log('[JanSeva Cascade] Cooldown window elapsed, resetting session model index to primary.');
+                        setSessionActiveModelIndex(0);
+                    }
+
+                    const startIndex = getSessionActiveModelIndex();
+
+                    // Start directly from the known working model for this session
+                    for (let i = startIndex; i < fallbackModelDefs.length; i++) {
+                        const { name, model } = fallbackModelDefs[i];
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
                         try {
-                            const agent = new ToolLoopAgent({ model, instructions: systemInstructions, tools });
-                            const uiStream = await createAgentUIStream({ agent, uiMessages: formattedMessages });
+                            const agent = new ToolLoopAgent({
+                                model,
+                                instructions: systemInstructions,
+                                tools,
+                                maxRetries: 0, // Fast failover without retry backoff delays
+                            });
+
+                            const uiStream = await createAgentUIStream({
+                                agent,
+                                uiMessages: formattedMessages,
+                                abortSignal: controller.signal,
+                            });
 
                             let modelErrorOccurred = false;
-                            const bufferedChunks: any[] = [];
+                            let bufferFlushed = false;
+                            const buffer: any[] = [];
 
-                            // Intercept error chunk before streaming to client
                             for await (const chunk of uiStream) {
                                 if (chunk.type === 'error') {
-                                    console.warn('[JanSeva Cascade] Model quota/rate limit error chunk, failing over...');
+                                    console.warn(`[JanSeva Cascade] Model ${name} unavailable/exhausted, advancing session index...`);
                                     modelErrorOccurred = true;
                                     break;
                                 }
-                                bufferedChunks.push(chunk);
-                                while (bufferedChunks.length > 0) {
-                                    writer.write(bufferedChunks.shift() as any);
+
+                                if (!bufferFlushed) {
+                                    buffer.push(chunk);
+                                    // Only flush buffer to writer once actual content/tool begins
+                                    if (
+                                        chunk.type === 'text-delta' ||
+                                        chunk.type === 'tool-input-start' ||
+                                        chunk.type === 'tool-input-available' ||
+                                        chunk.type === 'finish-step'
+                                    ) {
+                                        clearTimeout(timeoutId);
+                                        for (const b of buffer) {
+                                            writer.write(b);
+                                        }
+                                        buffer.length = 0;
+                                        bufferFlushed = true;
+                                    }
+                                } else {
+                                    writer.write(chunk);
                                 }
                             }
+                            clearTimeout(timeoutId);
 
-                            if (!modelErrorOccurred) {
+                            if (!modelErrorOccurred && bufferFlushed) {
                                 succeeded = true;
-                                break; // Successfully streamed, break the fallback loop
+                                setSessionActiveModelIndex(i); // Lock to this working model for the session!
+                                break;
+                            } else {
+                                // Mark this model exhausted for the session
+                                setSessionActiveModelIndex(i + 1);
                             }
-                        } catch (err) {
-                            console.warn('[JanSeva Cascade] Model exception, trying next model...');
+                        } catch (err: any) {
+                            clearTimeout(timeoutId);
+                            console.warn(`[JanSeva Cascade] Model ${name} exception/timeout, advancing session index...`);
+                            setSessionActiveModelIndex(i + 1);
                         }
+                    }
+
+                    // If all models exhausted, reset index for future attempts
+                    if (getSessionActiveModelIndex() >= fallbackModelDefs.length) {
+                        setSessionActiveModelIndex(0);
                     }
                 }
 
